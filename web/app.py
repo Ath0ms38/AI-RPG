@@ -43,7 +43,7 @@ class GameSession:
 
         self.llm_main = ChatOpenAI(model_name="gpt-4o-mini", streaming=True).bind_tools(
             list(self.action_tools.values()))
-        self.llm_creation = ChatOpenAI(model_name="gpt-4o-mini", streaming=True).bind_tools(
+        self.llm_creation = ChatOpenAI(model_name="gpt-4o", streaming=True).bind_tools(
             list(self.creation_tools.values()))
         self.llm_observation = ChatOpenAI(model_name="gpt-4o-mini", streaming=True).bind_tools(
             list(self.observation_tools.values()))
@@ -79,7 +79,7 @@ Ensure the following fields are present:
 MISSING ANY FIELD WILL CAUSE AN ERROR. Ensure all fields are included!
 If a user doesn't provide a field, you can generate it yourself.
 If a user doesn't give a description, you can generate it yourself randomly !!.
-Unless specified otherwise create a level 1 character with common equipment !!
+Unless the user provides a level, experience, or equipment make it beginner level.
 YOU ARE OBLIGATED TO CREATE A CHARACTER, even if the user input doesn't make any sense.
 """)
 
