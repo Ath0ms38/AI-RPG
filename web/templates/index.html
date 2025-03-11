@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Game</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Character Creation Modal -->
+    <div id="character-creation-modal" class="modal">
+        <div class="modal-content">
+            <h2>Character Creation</h2>
+            <p>Describe your character to begin your adventure. Be creative with your character's appearance, background, and abilities!</p>
+            <div class="input-container">
+                <input type="text" id="character-description" placeholder="Enter your character description..." autocomplete="off">
+                <button id="create-character-button" type="button">
+                    <i class="fa fa-magic"></i> Create
+                </button>
+            </div>
+            <div id="creation-status" class="creation-status"></div>
+        </div>
+    </div>
+
+    <div class="game-container">
+        <!-- Left panel: Game chat -->
+        <div class="game-panel">
+            <h1>Fantasy RPG Adventure</h1>
+            <div class="chat-container">
+                <div id="chat-history" class="chat-history"></div>
+
+                <!-- Text input for user actions -->
+                <div class="input-container">
+                    <input type="text" id="user-input" placeholder="Enter your action..." autocomplete="off">
+                    <button id="send-button" type="button">
+                        <i class="fa fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right panel: Character info -->
+        <div class="character-panel">
+            <h2>Character Sheet</h2>
+            <div class="character-info">
+                <div class="info-section">
+                    <label for="character-name">Name:</label>
+                    <input type="text" id="character-name" class="editable-field" placeholder="Character name">
+                </div>
+
+                <div class="info-section">
+                    <label for="character-lore">Lore:</label>
+                    <textarea id="character-lore" class="editable-field" placeholder="Character backstory"></textarea>
+                </div>
+
+                <div class="info-section">
+                    <h3>Stats</h3>
+                    <div id="character-stats" class="stats-container">
+                        <!-- Stats will be filled by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Equipment</h3>
+                    <div id="equipment-slots" class="equipment-container">
+                        <!-- Equipment slots will be filled by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Inventory</h3>
+                    <div id="inventory-list" class="inventory-container">
+                        <!-- Inventory will be filled by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates for dynamic content -->
+    <template id="user-message-template">
+        <div class="message user-message">
+            <div class="message-avatar">
+                <i class="fa fa-user"></i>
+            </div>
+            <div class="message-content"></div>
+        </div>
+    </template>
+
+    <template id="ai-message-template">
+        <div class="message ai-message">
+            <div class="message-avatar">
+                <i class="fa fa-robot"></i>
+            </div>
+            <div class="message-content"></div>
+        </div>
+    </template>
+
+    <template id="system-message-template">
+        <div class="message system-message">
+            <div class="message-content"></div>
+        </div>
+    </template>
+
+    <template id="observation-message-template">
+        <div class="message observation-container">
+            <div class="observation-header">
+                <i class="fa fa-eye"></i>
+                <span>Observation AI</span>
+                <button class="toggle-button">
+                    <i class="fa fa-chevron-down"></i>
+                </button>
+            </div>
+            <div class="observation-content"></div>
+        </div>
+    </template>
+
+    <template id="tool-call-template">
+        <div class="tool-message">
+            <div class="tool-header">
+                <i class="fa fa-wrench"></i>
+                <span class="tool-name"></span>
+            </div>
+            <div class="tool-content"></div>
+        </div>
+    </template>
+
+    <script src="/static/game.js"></script>
+</body>
+</html>
