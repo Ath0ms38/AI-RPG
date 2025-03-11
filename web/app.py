@@ -50,7 +50,7 @@ class GameSession:
 
         # Set up system messages
         self.game_system = SystemMessage(content="""RPG Game Master Guidelines:
-1. Use tools for inventory/character changes. When a character unequip an item, it is added to the inventory automatically
+1. Use tools for inventory/character changes. When a character unequip an item, it is added to the inventory automatically you don't need to recreate it.
 2. Describe consequences of tool actions
 3. Maintain consistent fantasy setting
 4. Track character status through tools
@@ -79,6 +79,7 @@ Ensure the following fields are present:
 MISSING ANY FIELD WILL CAUSE AN ERROR. Ensure all fields are included!
 If a user doesn't provide a field, you can generate it yourself.
 If a user doesn't give a description, you can generate it yourself randomly !!.
+Unless specified otherwise create a level 1 character with common equipment !!
 YOU ARE OBLIGATED TO CREATE A CHARACTER, even if the user input doesn't make any sense.
 """)
 

@@ -206,6 +206,8 @@ textarea.editable-field {
     padding: 10px 15px;
     border-radius: 8px;
     background-color: var(--panel-bg);
+    white-space: pre-wrap;
+    line-height: 1.5;
 }
 
 .user-message .message-content {

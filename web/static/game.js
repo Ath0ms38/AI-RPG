@@ -297,7 +297,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             chatHistory.appendChild(template);
         }
 
-        currentAiMessage.innerHTML += content;
+        // Append content, preserving formatting
+        currentAiMessage.textContent += content;
         scrollToBottom();
     }
 
