@@ -19,6 +19,7 @@ player_character = Character()
 @tool
 def create_character(name: str, lore: str, level_and_experience: dict, health_and_mana: dict, equipment: dict) -> str:
     """Creates the player character with comprehensive attributes.
+    Unless specified otherwise, the health and mana should be full. and the level should be 1.
 
     Args:
         name: Full name of the character (2-5 words).

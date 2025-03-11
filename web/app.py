@@ -335,11 +335,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             # Process observation
             observation_results = await process_observation(session)
-            if observation_results:
-                await websocket.send_text(json.dumps({
-                    "type": "observation",
-                    "content": observation_results
-                }))
+            # Always send observation data to keep UI consistent
+            await websocket.send_text(json.dumps({
+                "type": "observation",
+                "content": observation_results
+            }))
 
             # Process AI response
             await process_ai_response(websocket, session)
@@ -389,25 +389,32 @@ async def process_observation(session):
     observation_history = [session.observation_system] + session.chat_history[-2:]
     gathered_msg = None
 
-    async for chunk in session.llm_observation.astream(observation_history):
-        if chunk.tool_calls:
-            gathered_msg = chunk if not gathered_msg else gathered_msg + chunk
+    try:
+        async for chunk in session.llm_observation.astream(observation_history):
+            if chunk.tool_calls:
+                gathered_msg = chunk if not gathered_msg else gathered_msg + chunk
 
-    if not gathered_msg or not gathered_msg.tool_calls:
-        return None
+        if not gathered_msg or not gathered_msg.tool_calls:
+            return None
 
-    observation_results = []
-    for tool_call in gathered_msg.tool_calls:
-        tool_output = session.call_tool(tool_call['name'], tool_call['args'])
-        observation_results.append({
-            "tool": tool_call['name'],
-            "output": tool_output
-        })
+        observation_results = []
+        for tool_call in gathered_msg.tool_calls:
+            tool_output = session.call_tool(tool_call['name'], tool_call['args'])
+            observation_results.append({
+                "tool": tool_call['name'],
+                "output": tool_output
+            })
 
-        history_message = f"Observation AI called Tool {tool_call['name']} and got response:\n {tool_output}"
-        session.chat_history.append(AIMessage(content=history_message))
+            history_message = f"Observation AI called Tool {tool_call['name']} and got response:\n {tool_output}"
+            session.chat_history.append(AIMessage(content=history_message))
 
-    return observation_results
+        # Always return at least an empty array so the frontend knows
+        # an observation was processed, even if no tools were called
+        return observation_results or []
+    except Exception as e:
+        print(f"Error in observation processing: {e}")
+        # Return an empty array to avoid breaking the frontend
+        return []
 
 
 async def process_ai_response(websocket, session):

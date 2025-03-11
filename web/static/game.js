@@ -236,27 +236,55 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     function addObservationMessage(observations) {
-        const template = observationMessageTemplate.content.cloneNode(true);
-        const contentDiv = template.querySelector('.observation-content');
+        // Create observation message elements directly
+        const observationContainer = document.createElement('div');
+        observationContainer.className = 'message observation-container';
 
-        observations.forEach(obs => {
-            const toolDiv = document.createElement('div');
-            toolDiv.classList.add('tool-item');
-            toolDiv.innerHTML = `<strong>${obs.tool}:</strong> ${obs.output}`;
-            contentDiv.appendChild(toolDiv);
-        });
+        const observationHeader = document.createElement('div');
+        observationHeader.className = 'observation-header';
+        observationHeader.innerHTML = `
+            <i class="fa fa-eye"></i>
+            <span>Observation AI</span>
+            <i class="fa fa-chevron-down observation-toggle-icon"></i>
+        `;
 
-        const observationDiv = chatHistory.appendChild(template);
+        const observationContent = document.createElement('div');
+        observationContent.className = 'observation-content';
 
-        // Add toggle functionality
-        const toggleButton = observationDiv.querySelector('.toggle-button');
-        const observationContent = observationDiv.querySelector('.observation-content');
-        const toggleIcon = toggleButton.querySelector('i');
+        // Add observation items
+        if (observations && observations.length > 0) {
+            observations.forEach(obs => {
+                const toolDiv = document.createElement('div');
+                toolDiv.className = 'tool-item';
+                toolDiv.innerHTML = `<strong>${obs.tool}:</strong> ${obs.output}`;
+                observationContent.appendChild(toolDiv);
+            });
+        } else {
+            // If no observations, add a placeholder message
+            const noObsDiv = document.createElement('div');
+            noObsDiv.className = 'tool-item';
+            noObsDiv.textContent = 'No observations to report.';
+            observationContent.appendChild(noObsDiv);
+        }
 
-        toggleButton.addEventListener('click', function() {
-            observationContent.classList.toggle('collapsed');
-            toggleIcon.classList.toggle('fa-chevron-down');
-            toggleIcon.classList.toggle('fa-chevron-up');
+        // Hide content initially
+        observationContent.style.display = 'none';
+
+        // Append elements
+        observationContainer.appendChild(observationHeader);
+        observationContainer.appendChild(observationContent);
+        chatHistory.appendChild(observationContainer);
+
+        // Add click handler
+        observationHeader.addEventListener('click', function() {
+            if (observationContent.style.display === 'none') {
+                observationContent.style.display = 'block';
+                observationHeader.querySelector('.observation-toggle-icon').className = 'fa fa-chevron-up observation-toggle-icon';
+            } else {
+                observationContent.style.display = 'none';
+                observationHeader.querySelector('.observation-toggle-icon').className = 'fa fa-chevron-down observation-toggle-icon';
+            }
+            scrollToBottom();
         });
 
         scrollToBottom();
@@ -278,22 +306,40 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     function addToolCallMessage(toolName, args) {
-        const template = toolCallTemplate.content.cloneNode(true);
-        template.querySelector('.tool-name').textContent = toolName;
-        template.querySelector('.tool-content').textContent = args;
+        // Create the tool message elements directly rather than using template
+        const toolMessage = document.createElement('div');
+        toolMessage.className = 'tool-message';
 
-        const toolMessage = chatHistory.appendChild(template);
+        const toolHeader = document.createElement('div');
+        toolHeader.className = 'tool-header';
+        toolHeader.innerHTML = `
+            <i class="fa fa-wrench"></i>
+            <span class="tool-name">${toolName}</span>
+            <i class="fa fa-chevron-down tool-toggle-icon"></i>
+        `;
 
-        // Add toggle functionality to tool calls
-        const toolHeader = toolMessage.querySelector('.tool-header');
-        const toolContent = toolMessage.querySelector('.tool-content');
+        const toolContent = document.createElement('div');
+        toolContent.className = 'tool-content';
+        toolContent.textContent = args;
 
-        // Initially collapse the tool content
-        toolContent.classList.add('collapsed');
+        // Hide content initially
+        toolContent.style.display = 'none';
 
-        // Add click handler for toggling
+        // Append elements
+        toolMessage.appendChild(toolHeader);
+        toolMessage.appendChild(toolContent);
+        chatHistory.appendChild(toolMessage);
+
+        // Add click handler
         toolHeader.addEventListener('click', function() {
-            toolContent.classList.toggle('collapsed');
+            if (toolContent.style.display === 'none') {
+                toolContent.style.display = 'block';
+                toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-up tool-toggle-icon';
+            } else {
+                toolContent.style.display = 'none';
+                toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-down tool-toggle-icon';
+            }
+            scrollToBottom();
         });
 
         scrollToBottom();
