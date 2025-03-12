@@ -20,11 +20,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     const observationMessageTemplate = document.getElementById('observation-message-template');
     const toolCallTemplate = document.getElementById('tool-call-template');
 
+
+
     // State
     let sessionId = null;
     let webSocket = null;
     let currentAiMessage = null;
     let characterCreated = false;
+    // Add these variables to the top section with other state variables
+    let pendingToolCalls = {};  // To track pending tool calls
+
 
     // Initialize the game
     await initializeSession();
@@ -167,39 +172,120 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }
 
-    function handleWebSocketMessage(message) {
-        switch (message.type) {
-            case 'system':
-                addSystemMessage(message.content);
-                break;
-            case 'user':
-                // Already handled when sending
-                break;
-            case 'ai_chunk':
-                appendToAiMessage(message.content);
-                break;
-            case 'ai_complete':
-                finalizeAiMessage();
-                break;
-            case 'observation':
-                addObservationMessage(message.content);
-                break;
-            case 'tool_call':
-                addToolCallMessage(message.name, JSON.stringify(message.args, null, 2));
-                break;
-            case 'tool_output':
+    // Replace the handleWebSocketMessage function with this updated version
+function handleWebSocketMessage(message) {
+    switch (message.type) {
+        case 'system':
+            addSystemMessage(message.content);
+            break;
+        case 'user':
+            // Already handled when sending
+            break;
+        case 'ai_chunk':
+            appendToAiMessage(message.content);
+            break;
+        case 'ai_complete':
+            finalizeAiMessage();
+            break;
+        case 'observation':
+            addObservationMessage(message.content);
+            break;
+        case 'tool_call':
+            // Store tool call info, but don't display yet
+            pendingToolCalls[message.name] = {
+                name: message.name,
+                args: JSON.stringify(message.args, null, 2),
+                output: null
+            };
+            break;
+        case 'tool_output':
+            // Find the matching tool call
+            const matchingToolName = Object.keys(pendingToolCalls).find(
+                toolName => !pendingToolCalls[toolName].output
+            );
+
+            if (matchingToolName) {
+                // Add output to the pending tool call
+                pendingToolCalls[matchingToolName].output = message.content;
+
+                // Now add the combined message
+                addCombinedToolMessage(
+                    matchingToolName,
+                    pendingToolCalls[matchingToolName].args,
+                    message.content
+                );
+
+                // Remove from pending calls
+                delete pendingToolCalls[matchingToolName];
+            } else {
+                // Fallback in case we can't match it to a call
                 addToolOutputMessage(message.content);
-                break;
-            case 'character_update':
-                updateCharacterUI(message.data);
-                break;
-            case 'error':
-                addSystemMessage(`Error: ${message.content}`);
-                break;
-            default:
-                console.log('Unknown message type:', message);
-        }
+            }
+            break;
+        case 'character_update':
+            updateCharacterUI(message.data);
+            break;
+        case 'error':
+            addSystemMessage(`Error: ${message.content}`);
+            break;
+        default:
+            console.log('Unknown message type:', message);
     }
+}
+
+// Add this new function to handle combined tool calls and outputs
+function addCombinedToolMessage(toolName, args, output) {
+    // Create the tool message container
+    const toolMessage = document.createElement('div');
+    toolMessage.className = 'tool-message';
+
+    // Create header with tool name
+    const toolHeader = document.createElement('div');
+    toolHeader.className = 'tool-header';
+    toolHeader.innerHTML = `
+        <i class="fa fa-wrench"></i>
+        <span class="tool-name">${toolName}</span>
+        <i class="fa fa-chevron-down tool-toggle-icon"></i>
+    `;
+
+    // Create content with args and output
+    const toolContent = document.createElement('div');
+    toolContent.className = 'tool-content';
+    toolContent.innerHTML = `
+        <div class="tool-args">
+            <strong>Arguments:</strong>
+            <pre>${args}</pre>
+        </div>
+        <div class="tool-result">
+            <strong>Result:</strong>
+            <pre>${output}</pre>
+        </div>
+    `;
+
+    // Hide content initially
+    toolContent.style.display = 'none';
+
+    // Append elements
+    toolMessage.appendChild(toolHeader);
+    toolMessage.appendChild(toolContent);
+    chatHistory.appendChild(toolMessage);
+
+    // Add click handler
+    toolHeader.addEventListener('click', function() {
+        if (toolContent.style.display === 'none') {
+            toolContent.style.display = 'block';
+            toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-up tool-toggle-icon';
+        } else {
+            toolContent.style.display = 'none';
+            toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-down tool-toggle-icon';
+        }
+        scrollToBottom();
+    });
+
+    scrollToBottom();
+}
+
+
 
     function sendMessage() {
         // Don't allow sending messages until character is created
@@ -306,43 +392,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         currentAiMessage = null;
     }
 
-    function addToolCallMessage(toolName, args) {
-        // Create the tool message elements directly rather than using template
-        const toolMessage = document.createElement('div');
-        toolMessage.className = 'tool-message';
-
-        const toolHeader = document.createElement('div');
-        toolHeader.className = 'tool-header';
-        toolHeader.innerHTML = `
-            <i class="fa fa-wrench"></i>
-            <span class="tool-name">${toolName}</span>
-            <i class="fa fa-chevron-down tool-toggle-icon"></i>
-        `;
-
-        const toolContent = document.createElement('div');
-        toolContent.className = 'tool-content';
-        toolContent.textContent = args;
-
-        // Hide content initially
-        toolContent.style.display = 'none';
-
-        // Append elements
-        toolMessage.appendChild(toolHeader);
-        toolMessage.appendChild(toolContent);
-        chatHistory.appendChild(toolMessage);
-
-        // Add click handler
-        toolHeader.addEventListener('click', function() {
-            if (toolContent.style.display === 'none') {
-                toolContent.style.display = 'block';
-                toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-up tool-toggle-icon';
-            } else {
-                toolContent.style.display = 'none';
-                toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-down tool-toggle-icon';
-            }
-            scrollToBottom();
-        });
-
+        // But we'll keep a simplified version of addToolOutputMessage as a fallback
+    function addToolOutputMessage(content) {
+        const div = document.createElement('div');
+        div.classList.add('tool-output-message');
+        div.textContent = content;
+        chatHistory.appendChild(div);
         scrollToBottom();
     }
 

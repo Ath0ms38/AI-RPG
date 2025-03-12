@@ -442,3 +442,72 @@ textarea.editable-field {
         padding: 20px;
     }
 }
+
+/* Tool messages styling */
+.tool-message {
+    background-color: var(--tool-message-bg);
+    border-radius: 8px;
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+.tool-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    user-select: none;
+}
+
+.tool-header:hover {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.tool-header i {
+    margin-right: 10px;
+}
+
+.tool-toggle-icon {
+    margin-left: auto;
+}
+
+.tool-name {
+    font-weight: bold;
+}
+
+.tool-content {
+    padding: 10px 15px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.tool-args, .tool-result {
+    margin-bottom: 10px;
+}
+
+.tool-args pre, .tool-result pre {
+    margin-top: 5px;
+    padding: 8px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+.tool-result pre {
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+/* You can remove the original .tool-output-message styling if you want,
+   or keep it as a fallback */
+.tool-output-message {
+    background-color: var(--tool-message-bg);
+    border-radius: 8px;
+    margin: 5px 0 10px;
+    padding: 10px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    opacity: 0.9;
+}
