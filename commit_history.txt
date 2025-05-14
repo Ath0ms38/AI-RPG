@@ -1,0 +1,11 @@
+b5b16e5 Commit all changes
+7ee430b commit and push
+4756f34 Commit all changes; update .gitignore to ignore users/ and .env files
+c7a81f3 Prompt improvement and bug fixes
+22a2ef1 changed creation to gpt-4o models. Mini make mistakes
+d724f1c Bug fixes and update requirements.txt
+3a3cb9c Bug fixes with the expend system of tool call and observation AI
+d9ae4ca Front v1
+4dd7b94 Modify character creation to remove stats. Modify character creation to add lore. Equipements are not generated with the Item class.
+e77daa3 first commit
+1796199 Initial commit

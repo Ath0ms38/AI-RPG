@@ -34,10 +34,46 @@ document.addEventListener('DOMContentLoaded', async function() {
         // If a story_id is present, use it as the session id (continue story)
         sessionId = storyId;
         characterCreationModal.classList.add('hidden');
-        fetchCharacterData();
-        connectWebSocket();
+        fetchStoryDataAndInit();
     } else {
         characterCreationModal.classList.remove('hidden');
+    }
+
+    async function fetchStoryDataAndInit() {
+        await fetchCharacterData();
+        await fetchAndRenderChatHistory();
+        connectWebSocket();
+    }
+
+    async function fetchAndRenderChatHistory() {
+        try {
+            const response = await fetch(`/story/${sessionId}`);
+            const data = await response.json ? await response.json() : await response;
+            if (data && data.chat_history && Array.isArray(data.chat_history)) {
+                data.chat_history.forEach(msg => {
+                    // Hide system guidelines and "Begin the adventure"
+                    if (
+                        (msg.role === 'system' && msg.content && msg.content.includes('RPG Game Master Guidelines')) ||
+                        (msg.role === 'human' && msg.content && (
+                            msg.content.trim() === 'Begin the adventure.' ||
+                            msg.content.trim().startsWith('World Description:')
+                        ))
+                    ) {
+                        return;
+                    }
+                    if (msg.role === 'human') {
+                        addUserMessage(msg.content);
+                    } else if (msg.role === 'system') {
+                        addSystemMessage(msg.content);
+                    } else if (msg.role && msg.role.toLowerCase().startsWith('ai')) {
+                        appendToAiMessage(msg.content);
+                        finalizeAiMessage();
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching chat history:', error);
+        }
     }
 
     // Event Listeners
@@ -123,13 +159,22 @@ document.addEventListener('DOMContentLoaded', async function() {
             addSystemMessage('Connection error. Please refresh the page.');
         };
 
-        webSocket.onclose = () => {
-            console.log('WebSocket closed');
-            setTimeout(() => {
-                if (sessionId) {
-                    connectWebSocket();
-                }
-            }, 3000);
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        webSocket.onclose = (event) => {
+            console.log('WebSocket closed', event);
+            // Only reconnect if not a clean close and retry limit not reached
+            if (!event.wasClean && reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                setTimeout(() => {
+                    if (sessionId) {
+                        connectWebSocket();
+                    }
+                }, 3000 * reconnectAttempts); // Exponential backoff
+            } else if (reconnectAttempts >= maxReconnectAttempts) {
+                addSystemMessage('Unable to connect to server. Please refresh the page or try again later.');
+            }
         };
     }
 
