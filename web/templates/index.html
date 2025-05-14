@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<![DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -6,19 +6,54 @@
     <title>RPG Game</title>
     <link rel="stylesheet" href="/static/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        #loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(44, 62, 80, 0.95);
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-color);
+            font-size: 2em;
+        }
+        .loading-spinner {
+            margin-top: 30px;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid var(--accent-color);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg);}
+            100% { transform: rotate(360deg);}
+        }
+    </style>
 </head>
-<body>
-    <!-- Character Creation Modal -->
+<body{% if story_id %} data-story-id="{{ story_id }}"{% endif %}>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div>Generating your adventure...</div>
+        <div class="loading-spinner"></div>
+    </div>
+    <!-- Character & World Creation Modal -->
     <div id="character-creation-modal" class="modal">
         <div class="modal-content">
-            <h2>Character Creation</h2>
-            <p>Describe your character to begin your adventure. Be creative with your character's appearance, background, and abilities!</p>
+            <h2>New Adventure</h2>
+            <p>Describe the world and your character to begin your adventure!</p>
             <div class="input-container">
-                <input type="text" id="character-description" placeholder="Enter your character description..." autocomplete="off">
-                <button id="create-character-button" type="button">
-                    <i class="fa fa-magic"></i> Create
-                </button>
+                <textarea id="world-description" placeholder="Describe the world your adventure takes place in..." autocomplete="off"></textarea>
             </div>
+            <div class="input-container">
+                <textarea id="character-description" placeholder="Describe your character..." autocomplete="off"></textarea>
+            </div>
+            <button id="create-character-button" type="button" style="width:100%;margin-top:10px;">
+                <i class="fa fa-magic"></i> Start Adventure
+            </button>
             <div id="creation-status" class="creation-status"></div>
         </div>
     </div>
@@ -102,8 +137,6 @@
             <div class="message-content"></div>
         </div>
     </template>
-
-    <!-- Removed observation-message-template as we're now creating elements directly in JS -->
 
     <template id="tool-call-template">
         <div class="tool-message">

@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', async function() {
     // DOM Elements
     const characterCreationModal = document.getElementById('character-creation-modal');
+    const worldDescription = document.getElementById('world-description');
     const characterDescription = document.getElementById('character-description');
     const createCharacterButton = document.getElementById('create-character-button');
     const creationStatus = document.getElementById('creation-status');
@@ -12,32 +13,42 @@ document.addEventListener('DOMContentLoaded', async function() {
     const characterStats = document.getElementById('character-stats');
     const equipmentSlots = document.getElementById('equipment-slots');
     const inventoryList = document.getElementById('inventory-list');
+    const loadingOverlay = document.getElementById('loading-overlay');
 
     // Templates
     const userMessageTemplate = document.getElementById('user-message-template');
     const aiMessageTemplate = document.getElementById('ai-message-template');
     const systemMessageTemplate = document.getElementById('system-message-template');
-    const observationMessageTemplate = document.getElementById('observation-message-template');
     const toolCallTemplate = document.getElementById('tool-call-template');
-
-
 
     // State
     let sessionId = null;
     let webSocket = null;
     let currentAiMessage = null;
     let characterCreated = false;
-    // Add these variables to the top section with other state variables
     let pendingToolCalls = {};  // To track pending tool calls
 
-
-    // Initialize the game
-    await initializeSession();
+    // Get story_id from body attribute if present
+    const storyId = document.body.getAttribute('data-story-id');
+    if (storyId) {
+        // If a story_id is present, use it as the session id (continue story)
+        sessionId = storyId;
+        characterCreationModal.classList.add('hidden');
+        fetchCharacterData();
+        connectWebSocket();
+    } else {
+        characterCreationModal.classList.remove('hidden');
+    }
 
     // Event Listeners
     createCharacterButton.addEventListener('click', createCharacter);
     characterDescription.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            createCharacter();
+        }
+    });
+    worldDescription.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
             createCharacter();
         }
     });
@@ -54,31 +65,44 @@ document.addEventListener('DOMContentLoaded', async function() {
     characterLore.addEventListener('blur', updateCharacterData);
 
     // Functions
-    async function initializeSession() {
+    async function initializeSession(worldDesc, charDesc) {
         try {
-            // Create a new session
-            const response = await fetch('/session', {
+            showLoading();
+            // Create a new story and wait for backend to finish character/AI
+            const response = await fetch('/api/stories', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                }
+                },
+                body: JSON.stringify({
+                    world_description: worldDesc,
+                    character_description: charDesc
+                })
             });
 
             const data = await response.json();
-            sessionId = data.session_id;
+            hideLoading();
 
-            // Fetch initial character data
-            fetchCharacterData();
-
-            // Connect WebSocket
-            connectWebSocket();
+            if (data.success) {
+                window.location.href = `/game/${data.story_id}`;
+            } else {
+                creationStatus.textContent = data.message || "Error creating story.";
+            }
         } catch (error) {
+            hideLoading();
             console.error('Error initializing session:', error);
-            addSystemMessage('Error initializing game. Please refresh the page.');
+            creationStatus.textContent = 'Error initializing game. Please refresh the page.';
         }
     }
 
-    function connectWebSocket() {
+    function showLoading() {
+        if (loadingOverlay) loadingOverlay.style.display = 'flex';
+    }
+    function hideLoading() {
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+    }
+
+    function connectWebSocket(onOpenCallback) {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws/${sessionId}`;
 
@@ -86,6 +110,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         webSocket.onopen = () => {
             console.log('WebSocket connected');
+            if (onOpenCallback) onOpenCallback();
         };
 
         webSocket.onmessage = (event) => {
@@ -100,7 +125,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         webSocket.onclose = () => {
             console.log('WebSocket closed');
-            // Attempt to reconnect if unexpectedly closed
             setTimeout(() => {
                 if (sessionId) {
                     connectWebSocket();
@@ -110,200 +134,117 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     function createCharacter() {
-        const description = characterDescription.value.trim();
-        if (!description) {
-            creationStatus.textContent = "Please enter a character description.";
+        const worldDesc = worldDescription.value.trim();
+        const charDesc = characterDescription.value.trim();
+        if (!worldDesc || !charDesc) {
+            creationStatus.textContent = "Please enter both world and character descriptions.";
             return;
         }
-
-        creationStatus.textContent = "Creating your character... Please wait.";
-
-        if (webSocket && webSocket.readyState === WebSocket.OPEN) {
-            webSocket.send(description);
-
-            // Listen for character creation completion
-            const originalOnMessage = webSocket.onmessage;
-            webSocket.onmessage = (event) => {
-                const message = JSON.parse(event.data);
-
-                if (message.type === 'character_update') {
-                    // Character has been created
-                    characterCreated = true;
-
-                    // Hide modal
-                    characterCreationModal.classList.add('hidden');
-
-                    // Add a system message about successful character creation
-                    addSystemMessage("Character creation successful! Your adventure begins...");
-
-                    // Restore original message handler
-                    webSocket.onmessage = originalOnMessage;
-
-                    // Handle the current message
-                    handleWebSocketMessage(message);
-                } else {
-                    // Process tool calls and outputs during creation but don't show in chat
-                    if (message.type === 'tool_call' || message.type === 'tool_output') {
-                        // Just update the creation status
-                        if (message.type === 'tool_call') {
-                            creationStatus.textContent = `Creating character... Setting up ${message.name}`;
-                        } else if (message.type === 'tool_output') {
-                            creationStatus.textContent = "Character details finalized...";
-                        }
-                    } else {
-                        // Handle other message types
-                        handleWebSocketMessage(message);
-                    }
-
-                    // Check if character creation is complete
-                    if (message.type === 'system' && message.content === 'GAME STARTED!') {
-                        characterCreated = true;
-                        characterCreationModal.classList.add('hidden');
-
-                        // Add success message instead of original system message
-                        addSystemMessage("Character creation successful! Your adventure begins...");
-
-                        webSocket.onmessage = originalOnMessage;
-                    }
-                }
-            };
-        } else {
-            creationStatus.textContent = "Connection lost. Please refresh the page.";
-        }
+        creationStatus.textContent = "Creating your adventure... Please wait.";
+        initializeSession(worldDesc, charDesc);
     }
 
-    // Replace the handleWebSocketMessage function with this updated version
-function handleWebSocketMessage(message) {
-    switch (message.type) {
-        case 'system':
-            addSystemMessage(message.content);
-            break;
-        case 'user':
-            // Already handled when sending
-            break;
-        case 'ai_chunk':
-            appendToAiMessage(message.content);
-            break;
-        case 'ai_complete':
-            finalizeAiMessage();
-            break;
-        case 'observation':
-            addObservationMessage(message.content);
-            break;
-        case 'tool_call':
-            // Store tool call info, but don't display yet
-            pendingToolCalls[message.name] = {
-                name: message.name,
-                args: JSON.stringify(message.args, null, 2),
-                output: null
-            };
-            break;
-        case 'tool_output':
-            // Find the matching tool call
-            const matchingToolName = Object.keys(pendingToolCalls).find(
-                toolName => !pendingToolCalls[toolName].output
-            );
-
-            if (matchingToolName) {
-                // Add output to the pending tool call
-                pendingToolCalls[matchingToolName].output = message.content;
-
-                // Now add the combined message
-                addCombinedToolMessage(
-                    matchingToolName,
-                    pendingToolCalls[matchingToolName].args,
-                    message.content
+    function handleWebSocketMessage(message) {
+        switch (message.type) {
+            case 'system':
+                addSystemMessage(message.content);
+                break;
+            case 'user':
+                break;
+            case 'ai_chunk':
+                appendToAiMessage(message.content);
+                break;
+            case 'ai_complete':
+                finalizeAiMessage();
+                break;
+            case 'observation':
+                addObservationMessage(message.content);
+                break;
+            case 'tool_call':
+                pendingToolCalls[message.name] = {
+                    name: message.name,
+                    args: JSON.stringify(message.args, null, 2),
+                    output: null
+                };
+                break;
+            case 'tool_output':
+                const matchingToolName = Object.keys(pendingToolCalls).find(
+                    toolName => !pendingToolCalls[toolName].output
                 );
-
-                // Remove from pending calls
-                delete pendingToolCalls[matchingToolName];
-            } else {
-                // Fallback in case we can't match it to a call
-                addToolOutputMessage(message.content);
-            }
-            break;
-        case 'character_update':
-            updateCharacterUI(message.data);
-            break;
-        case 'error':
-            addSystemMessage(`Error: ${message.content}`);
-            break;
-        default:
-            console.log('Unknown message type:', message);
-    }
-}
-
-// Add this new function to handle combined tool calls and outputs
-function addCombinedToolMessage(toolName, args, output) {
-    // Create the tool message container
-    const toolMessage = document.createElement('div');
-    toolMessage.className = 'tool-message';
-
-    // Create header with tool name
-    const toolHeader = document.createElement('div');
-    toolHeader.className = 'tool-header';
-    toolHeader.innerHTML = `
-        <i class="fa fa-wrench"></i>
-        <span class="tool-name">${toolName}</span>
-        <i class="fa fa-chevron-down tool-toggle-icon"></i>
-    `;
-
-    // Create content with args and output
-    const toolContent = document.createElement('div');
-    toolContent.className = 'tool-content';
-    toolContent.innerHTML = `
-        <div class="tool-args">
-            <strong>Arguments:</strong>
-            <pre>${args}</pre>
-        </div>
-        <div class="tool-result">
-            <strong>Result:</strong>
-            <pre>${output}</pre>
-        </div>
-    `;
-
-    // Hide content initially
-    toolContent.style.display = 'none';
-
-    // Append elements
-    toolMessage.appendChild(toolHeader);
-    toolMessage.appendChild(toolContent);
-    chatHistory.appendChild(toolMessage);
-
-    // Add click handler
-    toolHeader.addEventListener('click', function() {
-        if (toolContent.style.display === 'none') {
-            toolContent.style.display = 'block';
-            toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-up tool-toggle-icon';
-        } else {
-            toolContent.style.display = 'none';
-            toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-down tool-toggle-icon';
+                if (matchingToolName) {
+                    pendingToolCalls[matchingToolName].output = message.content;
+                    addCombinedToolMessage(
+                        matchingToolName,
+                        pendingToolCalls[matchingToolName].args,
+                        message.content
+                    );
+                    delete pendingToolCalls[matchingToolName];
+                } else {
+                    addToolOutputMessage(message.content);
+                }
+                break;
+            case 'character_update':
+                updateCharacterUI(message.data);
+                break;
+            case 'error':
+                addSystemMessage(`Error: ${message.content}`);
+                break;
+            default:
+                console.log('Unknown message type:', message);
         }
+    }
+
+    function addCombinedToolMessage(toolName, args, output) {
+        const toolMessage = document.createElement('div');
+        toolMessage.className = 'tool-message';
+        const toolHeader = document.createElement('div');
+        toolHeader.className = 'tool-header';
+        toolHeader.innerHTML = `
+            <i class="fa fa-wrench"></i>
+            <span class="tool-name">${toolName}</span>
+            <i class="fa fa-chevron-down tool-toggle-icon"></i>
+        `;
+        const toolContent = document.createElement('div');
+        toolContent.className = 'tool-content';
+        toolContent.innerHTML = `
+            <div class="tool-args">
+                <strong>Arguments:</strong>
+                <pre>${args}</pre>
+            </div>
+            <div class="tool-result">
+                <strong>Result:</strong>
+                <pre>${output}</pre>
+            </div>
+        `;
+        toolContent.style.display = 'none';
+        toolMessage.appendChild(toolHeader);
+        toolMessage.appendChild(toolContent);
+        chatHistory.appendChild(toolMessage);
+        toolHeader.addEventListener('click', function() {
+            if (toolContent.style.display === 'none') {
+                toolContent.style.display = 'block';
+                toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-up tool-toggle-icon';
+            } else {
+                toolContent.style.display = 'none';
+                toolHeader.querySelector('.tool-toggle-icon').className = 'fa fa-chevron-down tool-toggle-icon';
+            }
+            scrollToBottom();
+        });
         scrollToBottom();
-    });
-
-    scrollToBottom();
-}
-
-
+    }
 
     function sendMessage() {
-        // Don't allow sending messages until character is created
-        if (!characterCreated) {
+        if (!characterCreated && !storyId) {
             return;
         }
-
         const message = userInput.value.trim();
         if (!message) return;
-
         addUserMessage(message);
-
         if (webSocket && webSocket.readyState === WebSocket.OPEN) {
             webSocket.send(message);
         } else {
             addSystemMessage('Connection lost. Please refresh the page.');
         }
-
         userInput.value = '';
     }
 
@@ -322,10 +263,8 @@ function addCombinedToolMessage(toolName, args, output) {
     }
 
     function addObservationMessage(observations) {
-        // Create observation message elements directly
         const observationContainer = document.createElement('div');
         observationContainer.className = 'message observation-container';
-
         const observationHeader = document.createElement('div');
         observationHeader.className = 'observation-header';
         observationHeader.innerHTML = `
@@ -333,11 +272,8 @@ function addCombinedToolMessage(toolName, args, output) {
             <span>Observation AI</span>
             <i class="fa fa-chevron-down observation-toggle-icon"></i>
         `;
-
         const observationContent = document.createElement('div');
         observationContent.className = 'observation-content';
-
-        // Add observation items
         if (observations && observations.length > 0) {
             observations.forEach(obs => {
                 const toolDiv = document.createElement('div');
@@ -346,22 +282,15 @@ function addCombinedToolMessage(toolName, args, output) {
                 observationContent.appendChild(toolDiv);
             });
         } else {
-            // If no observations, add a placeholder message
             const noObsDiv = document.createElement('div');
             noObsDiv.className = 'tool-item';
             noObsDiv.textContent = 'No observations to report.';
             observationContent.appendChild(noObsDiv);
         }
-
-        // Hide content initially
         observationContent.style.display = 'none';
-
-        // Append elements
         observationContainer.appendChild(observationHeader);
         observationContainer.appendChild(observationContent);
         chatHistory.appendChild(observationContainer);
-
-        // Add click handler
         observationHeader.addEventListener('click', function() {
             if (observationContent.style.display === 'none') {
                 observationContent.style.display = 'block';
@@ -372,7 +301,6 @@ function addCombinedToolMessage(toolName, args, output) {
             }
             scrollToBottom();
         });
-
         scrollToBottom();
     }
 
@@ -382,23 +310,12 @@ function addCombinedToolMessage(toolName, args, output) {
             currentAiMessage = template.querySelector('.message-content');
             chatHistory.appendChild(template);
         }
-
-        // Append content, preserving formatting
         currentAiMessage.textContent += content;
         scrollToBottom();
     }
 
     function finalizeAiMessage() {
         currentAiMessage = null;
-    }
-
-        // But we'll keep a simplified version of addToolOutputMessage as a fallback
-    function addToolOutputMessage(content) {
-        const div = document.createElement('div');
-        div.classList.add('tool-output-message');
-        div.textContent = content;
-        chatHistory.appendChild(div);
-        scrollToBottom();
     }
 
     function addToolOutputMessage(content) {
@@ -413,12 +330,10 @@ function addCombinedToolMessage(toolName, args, output) {
         try {
             const response = await fetch(`/character/${sessionId}`);
             const data = await response.json();
-
             if (data.error) {
                 console.error('Error fetching character data:', data.error);
                 return;
             }
-
             updateCharacterUI(data);
         } catch (error) {
             console.error('Error fetching character data:', error);
@@ -430,7 +345,6 @@ function addCombinedToolMessage(toolName, args, output) {
             name: characterName.value.trim(),
             lore: characterLore.value.trim()
         };
-
         try {
             const response = await fetch(`/character/${sessionId}`, {
                 method: 'PUT',
@@ -439,14 +353,11 @@ function addCombinedToolMessage(toolName, args, output) {
                 },
                 body: JSON.stringify(updateData)
             });
-
             const data = await response.json();
-
             if (data.error) {
                 console.error('Error updating character data:', data.error);
                 return;
             }
-
             updateCharacterUI(data);
         } catch (error) {
             console.error('Error updating character data:', error);
@@ -454,20 +365,14 @@ function addCombinedToolMessage(toolName, args, output) {
     }
 
     function updateCharacterUI(data) {
-        // Update name and lore if they exist and aren't focused
         if (data.name && document.activeElement !== characterName) {
             characterName.value = data.name;
         }
-
         if (data.lore && document.activeElement !== characterLore) {
             characterLore.value = data.lore;
         }
-
-        // Update stats
         if (data.health && data.level) {
             characterStats.innerHTML = '';
-
-            // Health and Mana
             const healthManaDiv = document.createElement('div');
             healthManaDiv.innerHTML = `
                 <div class="stat-item">
@@ -480,8 +385,6 @@ function addCombinedToolMessage(toolName, args, output) {
                 </div>
             `;
             characterStats.appendChild(healthManaDiv);
-
-            // Level and XP
             const levelDiv = document.createElement('div');
             levelDiv.innerHTML = `
                 <div class="stat-item">
@@ -495,36 +398,26 @@ function addCombinedToolMessage(toolName, args, output) {
             `;
             characterStats.appendChild(levelDiv);
         }
-
-        // Update equipment
         if (data.equipment) {
             equipmentSlots.innerHTML = '';
-
             for (const [slot, item] of Object.entries(data.equipment)) {
                 const slotDiv = document.createElement('div');
                 slotDiv.classList.add('equipment-item');
-
                 slotDiv.innerHTML = `
                     <span>${formatSlotName(slot)}:</span>
                     <span>${item || 'Empty'}</span>
                 `;
-
                 equipmentSlots.appendChild(slotDiv);
             }
         }
-
-        // Update inventory
         if (data.inventory) {
             inventoryList.innerHTML = '';
-
             if (data.inventory === "Your inventory is empty.") {
                 const emptyDiv = document.createElement('div');
                 emptyDiv.textContent = "Your inventory is empty.";
                 inventoryList.appendChild(emptyDiv);
             } else {
-                // Basic parsing of the inventory string
                 const lines = data.inventory.split('\n');
-
                 for (let i = 2; i < lines.length; i++) {
                     const line = lines[i];
                     if (line && !line.startsWith('===')) {

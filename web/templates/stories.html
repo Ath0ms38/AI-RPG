@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Game - Stories</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .stories-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            padding: 20px;
+        }
+        .stories-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: var(--panel-bg);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+        }
+        .stories-header h1 {
+            color: var(--accent-color);
+            margin: 0;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .username {
+            color: var(--text-color);
+            font-weight: bold;
+        }
+        .logout-button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: rgba(231, 76, 60, 0.7);
+            color: var(--text-color);
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .logout-button:hover {
+            background-color: rgba(231, 76, 60, 1);
+        }
+        .stories-content {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+        }
+        .stories-list {
+            flex: 2;
+            background-color: var(--panel-bg);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .stories-list h2 {
+            color: var(--accent-color);
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        .story-item {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        .story-item:hover {
+            background-color: rgba(0, 0, 0, 0.3);
+            transform: translateY(-2px);
+        }
+        .story-title {
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-bottom: 5px;
+        }
+        .story-date {
+            font-size: 0.8em;
+            color: rgba(236, 240, 241, 0.7);
+        }
+        .story-description {
+            margin-top: 10px;
+            color: var(--text-color);
+        }
+        .new-story {
+            flex: 1;
+            background-color: var(--panel-bg);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        .new-story h2 {
+            color: var(--accent-color);
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        .new-story-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            flex: 1;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .form-group label {
+            color: var(--text-color);
+            font-weight: bold;
+        }
+        .form-input {
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            font-size: 16px;
+        }
+        textarea.form-input {
+            resize: vertical;
+            min-height: 100px;
+            flex: 1;
+        }
+        .create-button {
+            margin-top: auto;
+            padding: 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: var(--accent-color);
+            color: var(--dark-text);
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .create-button:hover {
+            background-color: #e67e22;
+        }
+        .no-stories {
+            color: var(--text-color);
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+        }
+        .form-message {
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .form-error {
+            background-color: rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+        }
+        .form-success {
+            background-color: rgba(46, 204, 113, 0.3);
+            color: #2ecc71;
+        }
+        #story-loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(44, 62, 80, 0.95);
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-color);
+            font-size: 2em;
+        }
+        .loading-spinner {
+            margin-top: 30px;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid var(--accent-color);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg);}
+            100% { transform: rotate(360deg);}
+        }
+        @media (max-width: 992px) {
+            .stories-content {
+                flex-direction: column;
+            }
+            .new-story {
+                min-height: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="story-loading-overlay">
+        <div>Generating your adventure...</div>
+        <div class="loading-spinner"></div>
+    </div>
+    <div class="stories-container">
+        <div class="stories-header">
+            <h1>Fantasy RPG Adventure</h1>
+            <div class="user-info">
+                <span class="username" id="username">Username</span>
+                <button id="logout-button" class="logout-button">
+                    <i class="fa fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+        <div class="stories-content">
+            <div class="stories-list">
+                <h2>Your Stories</h2>
+                <div id="stories-container">
+                    <div class="no-stories">Loading stories...</div>
+                </div>
+            </div>
+            <div class="new-story">
+                <h2>Create New Story</h2>
+                <div id="form-message" class="form-message" style="display: none;"></div>
+                <form id="new-story-form" class="new-story-form">
+                    <div class="form-group">
+                        <label for="world-description">World Description</label>
+                        <textarea id="world-description" class="form-input" placeholder="Describe the world your adventure takes place in..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="character-description">Character Description</label>
+                        <textarea id="character-description" class="form-input" placeholder="Describe your character..." required></textarea>
+                    </div>
+                    <button type="submit" class="create-button">
+                        <i class="fa fa-plus-circle"></i> Create New Adventure
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if user is logged in
+            checkAuth();
+            // DOM Elements
+            const usernameElement = document.getElementById('username');
+            const logoutButton = document.getElementById('logout-button');
+            const storiesContainer = document.getElementById('stories-container');
+            const newStoryForm = document.getElementById('new-story-form');
+            const formMessage = document.getElementById('form-message');
+            const loadingOverlay = document.getElementById('story-loading-overlay');
+            // Event Listeners
+            logoutButton.addEventListener('click', logout);
+            newStoryForm.addEventListener('submit', createNewStory);
+            // Functions
+            async function checkAuth() {
+                try {
+                    const response = await fetch('/api/check-auth');
+                    const data = await response.json();
+                    if (!data.authenticated) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    usernameElement.textContent = data.username;
+                    loadStories();
+                } catch (error) {
+                    window.location.href = '/login';
+                }
+            }
+            async function loadStories() {
+                try {
+                    const response = await fetch('/api/stories');
+                    const data = await response.json();
+                    if (data.success) {
+                        if (data.stories.length === 0) {
+                            storiesContainer.innerHTML = '<div class="no-stories">You have no stories yet. Create one to get started!</div>';
+                        } else {
+                            storiesContainer.innerHTML = '';
+                            data.stories.forEach(story => {
+                                const storyElement = document.createElement('div');
+                                storyElement.className = 'story-item';
+                                storyElement.dataset.id = story.id;
+                                const createdDate = new Date(story.created_at);
+                                const updatedDate = new Date(story.last_updated);
+                                storyElement.innerHTML = `
+                                    <div class="story-title">Adventure #${story.id.substring(0, 8)}</div>
+                                    <div class="story-date">
+                                        Created: ${createdDate.toLocaleDateString()} ${createdDate.toLocaleTimeString()}
+                                        <br>
+                                        Last played: ${updatedDate.toLocaleDateString()} ${updatedDate.toLocaleTimeString()}
+                                    </div>
+                                    <div class="story-description">${story.world_description}</div>
+                                    <button class="delete-story-btn" style="margin-top:10px;color:#e74c3c;background:none;border:none;cursor:pointer;">
+                                        <i class="fa fa-trash"></i> Delete
+                                    </button>
+                                `;
+                                storyElement.querySelector('.delete-story-btn').addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    deleteStory(story.id);
+                                });
+                                storyElement.addEventListener('click', () => {
+                                    continueStory(story.id);
+                                });
+                                storiesContainer.appendChild(storyElement);
+                            });
+                        }
+                    } else {
+                        storiesContainer.innerHTML = `<div class="no-stories">Error loading stories: ${data.message}</div>`;
+                    }
+                } catch (error) {
+                    storiesContainer.innerHTML = '<div class="no-stories">Error loading stories. Please try again.</div>';
+                }
+            }
+            async function createNewStory(e) {
+                e.preventDefault();
+                const worldDescription = document.getElementById('world-description').value.trim();
+                const characterDescription = document.getElementById('character-description').value.trim();
+                if (!worldDescription || !characterDescription) {
+                    showFormMessage('Please fill in all fields', 'error');
+                    return;
+                }
+                try {
+                    showLoading();
+                    const response = await fetch('/api/stories', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            world_description: worldDescription,
+                            character_description: characterDescription
+                        })
+                    });
+                    const data = await response.json();
+                    hideLoading();
+                    if (data.success) {
+                        showFormMessage('Story created successfully!', 'success');
+                        setTimeout(() => {
+                            window.location.href = `/game/${data.story_id}`;
+                        }, 1000);
+                    } else {
+                        showFormMessage(data.message, 'error');
+                    }
+                } catch (error) {
+                    hideLoading();
+                    showFormMessage('An error occurred. Please try again.', 'error');
+                }
+            }
+            function continueStory(storyId) {
+                window.location.href = `/game/${storyId}`;
+            }
+            function showFormMessage(message, type) {
+                formMessage.textContent = message;
+                formMessage.className = `form-message form-${type}`;
+                formMessage.style.display = 'block';
+                setTimeout(() => {
+                    formMessage.style.display = 'none';
+                }, 5000);
+            }
+            async function deleteStory(storyId) {
+                try {
+                    const response = await fetch(`/api/stories/${storyId}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        loadStories();
+                    } else {
+                        alert('Failed to delete story: ' + (data.message || 'Unknown error'));
+                    }
+                } catch (error) {
+                    alert('Error deleting story.');
+                }
+            }
+            async function logout() {
+                try {
+                    const response = await fetch('/api/logout', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        window.location.href = '/login';
+                    }
+                } catch (error) {
+                    console.error('Error logging out:', error);
+                }
+            }
+            function showLoading() {
+                if (loadingOverlay) loadingOverlay.style.display = 'flex';
+            }
+            function hideLoading() {
+                if (loadingOverlay) loadingOverlay.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

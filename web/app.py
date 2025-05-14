@@ -1,9 +1,12 @@
 import uuid
 import json
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+import os
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Form, Depends, Response, status, Cookie
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Any, Union
 import asyncio
@@ -15,7 +18,28 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain_core.messages.tool import ToolMessage
 
+# User management
+from user_management import (
+    register_user, authenticate_user, get_user_stories, create_story,
+    get_story, update_story
+)
+import shutil
+
+from dotenv import load_dotenv
+load_dotenv()
+
+
 app = FastAPI()
+app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
+
+# CORS for local dev
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -24,11 +48,140 @@ templates = Jinja2Templates(directory="templates")
 # Store active game sessions
 game_sessions = {}
 
+# --- Session helpers ---
+
+def get_username_from_session(request: Request) -> Optional[str]:
+    return request.session.get("username")
+
+def require_auth(request: Request):
+    username = get_username_from_session(request)
+    if not username:
+        raise Exception("Not authenticated")
+    return username
+
+# --- API ROUTES ---
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/stories", response_class=HTMLResponse)
+async def stories_page(request: Request):
+    username = get_username_from_session(request)
+    if not username:
+        return RedirectResponse("/login")
+    return templates.TemplateResponse("stories.html", {"request": request, "username": username})
+
+@app.post("/api/register")
+async def api_register(data: dict):
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    if not username or not password:
+        return {"success": False, "message": "Username and password required"}
+    result = register_user(username, password)
+    return result
+
+@app.post("/api/login")
+async def api_login(request: Request, data: dict):
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    if not username or not password:
+        return {"success": False, "message": "Username and password required"}
+    result = authenticate_user(username, password)
+    if result.get("success"):
+        request.session["username"] = username
+    return result
+
+@app.post("/api/logout")
+async def api_logout(request: Request):
+    request.session.clear()
+    return {"success": True}
+
+@app.get("/api/check-auth")
+async def api_check_auth(request: Request):
+    username = get_username_from_session(request)
+    return {"authenticated": bool(username), "username": username}
+
+@app.get("/api/stories")
+async def api_get_stories(request: Request):
+    username = get_username_from_session(request)
+    if not username:
+        return {"success": False, "message": "Not authenticated"}
+    stories = get_user_stories(username)
+    return {"success": True, "stories": stories}
+
+@app.post("/api/stories")
+async def api_create_story(request: Request, data: dict):
+    username = get_username_from_session(request)
+    if not username:
+        return {"success": False, "message": "Not authenticated"}
+    world_description = data.get("world_description", "")
+    character_description = data.get("character_description", "")
+    # 1. Create story file and get story_id
+    result = create_story(username, world_description, character_description)
+    if not result.get("success"):
+        return result
+    story_id = result["story_data"]["id"]
+
+    # 2. Create a game session for this story
+    session = GameSession(story_id)
+    game_sessions[story_id] = session
+
+    # 3. Run character creation with both world and character description
+    #    (simulate what the frontend would send as first message)
+    creation_input = f"World Description:\n{world_description}\n\nCharacter Description:\n{character_description}"
+    await process_character_creation(None, session, creation_input)
+
+    # 4. Generate the first AI message (intro to the world)
+    #    (simulate a "start" message from the user)
+    session.chat_history.append(HumanMessage(content="Begin the adventure."))
+    await process_ai_response(None, session, save_story_callback=lambda: update_story(username, story_id, session.chat_history))
+
+    # 5. Save the session/chat history to the story file
+    update_story(username, story_id, session.chat_history)
+
+    return {"success": True, "story_id": story_id}
+
+@app.delete("/api/stories/{story_id}")
+async def api_delete_story(request: Request, story_id: str):
+    username = get_username_from_session(request)
+    if not username:
+        return {"success": False, "message": "Not authenticated"}
+    # Remove story file and update user JSON
+    user_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "users", username.lower())
+    story_file = os.path.join(user_dir, f"{story_id}.json")
+    user_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "users", f"{username.lower()}.json")
+    try:
+        if os.path.exists(story_file):
+            os.remove(story_file)
+        # Remove from user JSON
+        if os.path.exists(user_file):
+            with open(user_file, "r") as f:
+                user_data = json.load(f)
+            user_data["stories"] = [s for s in user_data.get("stories", []) if s["id"] != story_id]
+            with open(user_file, "w") as f:
+                json.dump(user_data, f, indent=2)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+# --- GAME PAGE ROUTE AND GAME-READY ENDPOINT ---
+
+@app.get("/game/{story_id}", response_class=HTMLResponse)
+async def game_page(request: Request, story_id: str):
+    # Serve the main game UI, passing story_id for frontend use
+    return templates.TemplateResponse("index.html", {"request": request, "story_id": story_id})
+
+@app.get("/api/game-ready/{story_id}")
+async def api_game_ready(story_id: str):
+    # Placeholder: always ready, can add logic to check session/story state
+    return {"ready": True}
+
+# --- RPG GAME LOGIC (existing) ---
 
 class CharacterUpdate(BaseModel):
     name: Optional[str] = None
     lore: Optional[str] = None
-
 
 class GameSession:
     def __init__(self, session_id):
@@ -303,38 +456,32 @@ Starting Inventory: {self.player_character.see_inventory()}"""
             self.player_character.lore = update_data.lore
         return self.get_character_data()
 
+# --- Existing game endpoints (index, session, character, websocket) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def get_root(request: Request):
-    """Serve the main game page"""
-    return templates.TemplateResponse("index.html", {"request": request})
-
+    username = get_username_from_session(request)
+    if username:
+        return RedirectResponse("/stories")
+    return RedirectResponse("/login")
 
 @app.post("/session")
 async def create_session():
-    """Create a new game session"""
     session_id = str(uuid.uuid4())
     game_sessions[session_id] = GameSession(session_id)
     return {"session_id": session_id}
 
-
 @app.get("/character/{session_id}")
 async def get_character(session_id: str):
-    """Get character data for a session"""
     if session_id not in game_sessions:
         return {"error": "Session not found"}
-
     return game_sessions[session_id].get_character_data()
-
 
 @app.put("/character/{session_id}")
 async def update_character(session_id: str, update: CharacterUpdate):
-    """Update character attributes"""
     if session_id not in game_sessions:
         return {"error": "Session not found"}
-
     return game_sessions[session_id].update_character(update)
-
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -348,28 +495,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     session = game_sessions[session_id]
 
     try:
-        # For the web app, we'll wait for the user to send the character description first,
-        # rather than prompting them directly (the UI will show a modal)
         if not session.character_created:
-            # Wait for character description
             user_input = await websocket.receive_text()
-
-            # Process creation phase
             await process_character_creation(websocket, session, user_input)
-
-            # Send game started message
             await websocket.send_text(json.dumps({
                 "type": "system",
                 "content": "GAME STARTED!"
             }))
-
-            # Send updated character data after creation
             await websocket.send_text(json.dumps({
                 "type": "character_update",
                 "data": session.get_character_data()
             }))
 
-        # Main game loop
         while True:
             user_input = await websocket.receive_text()
             await websocket.send_text(json.dumps({
@@ -379,18 +516,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             session.chat_history.append(HumanMessage(content=user_input))
 
-            # Process observation
             observation_results = await process_observation(session)
-            # Always send observation data to keep UI consistent
             await websocket.send_text(json.dumps({
                 "type": "observation",
                 "content": observation_results
             }))
 
-            # Process AI response
             await process_ai_response(websocket, session)
-
-            # Send updated character data
             await websocket.send_text(json.dumps({
                 "type": "character_update",
                 "data": session.get_character_data()
@@ -402,47 +534,34 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         print(f"Error: {e}")
         await websocket.close()
 
-
 async def process_character_creation(websocket, session, user_input):
-    """Process character creation phase"""
-    # Create a clean history just for character creation to avoid issues with tool messages
     creation_history = [session.creation_system, HumanMessage(content=user_input)]
-
     response = await session.llm_creation.ainvoke(creation_history)
-
     if response.tool_calls:
         for tool_call in response.tool_calls:
-            await websocket.send_text(json.dumps({
-                "type": "tool_call",
-                "name": tool_call['name'],
-                "args": tool_call['args']
-            }))
-
+            if websocket:
+                await websocket.send_text(json.dumps({
+                    "type": "tool_call",
+                    "name": tool_call['name'],
+                    "args": tool_call['args']
+                }))
             tool_output = session.call_tool(tool_call['name'], tool_call['args'])
-
-            await websocket.send_text(json.dumps({
-                "type": "tool_output",
-                "content": tool_output
-            }))
-
-    # Now initialize the real chat history with just the system message
-    # This avoids issues with tool messages without preceding tool calls
+            if websocket:
+                await websocket.send_text(json.dumps({
+                    "type": "tool_output",
+                    "content": tool_output
+                }))
     session.chat_history = [session.game_system]
 
-
 async def process_observation(session):
-    """Process observation phase and return results"""
     observation_history = [session.observation_system] + session.chat_history[-2:]
     gathered_msg = None
-
     try:
         async for chunk in session.llm_observation.astream(observation_history):
             if chunk.tool_calls:
                 gathered_msg = chunk if not gathered_msg else gathered_msg + chunk
-
         if not gathered_msg or not gathered_msg.tool_calls:
             return None
-
         observation_results = []
         for tool_call in gathered_msg.tool_calls:
             tool_output = session.call_tool(tool_call['name'], tool_call['args'])
@@ -450,77 +569,63 @@ async def process_observation(session):
                 "tool": tool_call['name'],
                 "output": tool_output
             })
-
             history_message = f"Observation AI called Tool {tool_call['name']} and got response:\n {tool_output}"
             session.chat_history.append(AIMessage(content=history_message))
-
-        # Always return at least an empty array so the frontend knows
-        # an observation was processed, even if no tools were called
         return observation_results or []
     except Exception as e:
         print(f"Error in observation processing: {e}")
-        # Return an empty array to avoid breaking the frontend
         return []
 
-
-async def process_ai_response(websocket, session):
-    """Process AI response and handle tool calls"""
+async def process_ai_response(websocket, session, save_story_callback=None):
     gathered_msg = None
     response_content = ""
-
     try:
         async for chunk in session.llm_main.astream(session.chat_history):
             if chunk.content:
                 response_content += chunk.content
-                await websocket.send_text(json.dumps({
-                    "type": "ai_chunk",
-                    "content": chunk.content
-                }))
-
+                if websocket:
+                    await websocket.send_text(json.dumps({
+                        "type": "ai_chunk",
+                        "content": chunk.content
+                    }))
             gathered_msg = chunk if not gathered_msg else gathered_msg + chunk
-
         if gathered_msg:
             session.chat_history.append(gathered_msg)
-
-            # Send complete AI message
-            await websocket.send_text(json.dumps({
-                "type": "ai_complete",
-                "content": response_content
-            }))
-
-            # Process any tool calls
+            if websocket:
+                await websocket.send_text(json.dumps({
+                    "type": "ai_complete",
+                    "content": response_content
+                }))
             if gathered_msg.tool_calls:
                 for tool_call in gathered_msg.tool_calls:
-                    await websocket.send_text(json.dumps({
-                        "type": "tool_call",
-                        "name": tool_call['name'],
-                        "args": tool_call['args']
-                    }))
-
+                    if websocket:
+                        await websocket.send_text(json.dumps({
+                            "type": "tool_call",
+                            "name": tool_call['name'],
+                            "args": tool_call['args']
+                        }))
                     tool_output = session.call_tool(tool_call['name'], tool_call['args'])
-
-                    await websocket.send_text(json.dumps({
-                        "type": "tool_output",
-                        "content": tool_output
-                    }))
-
-                    # Add to chat history - make sure we have the proper structure
+                    if websocket:
+                        await websocket.send_text(json.dumps({
+                            "type": "tool_output",
+                            "content": tool_output
+                        }))
                     session.chat_history.append(ToolMessage(
                         content=tool_output,
                         tool_call_id=tool_call.get('id', str(uuid.uuid4()))
                     ))
-
-                # Process any followup after tool usage
-                await process_ai_response(websocket, session)
+                await process_ai_response(websocket, session, save_story_callback=save_story_callback)
+            # Save story after AI message if callback provided
+            if save_story_callback:
+                save_story_callback()
     except Exception as e:
         print(f"Error in AI response processing: {e}")
-        await websocket.send_text(json.dumps({
-            "type": "error",
-            "content": f"Error processing response: {str(e)}"
-        }))
-
+        if websocket:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "content": f"Error processing response: {str(e)}"
+            }))
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)

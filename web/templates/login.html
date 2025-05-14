@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Game - Login</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+        }
+        
+        .auth-box {
+            background-color: var(--panel-bg);
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .auth-box h1 {
+            color: var(--accent-color);
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .auth-input {
+            padding: 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            font-size: 16px;
+        }
+        
+        .auth-button {
+            padding: 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: var(--accent-color);
+            color: var(--dark-text);
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        .auth-button:hover {
+            background-color: #e67e22;
+        }
+        
+        .auth-toggle {
+            margin-top: 20px;
+            color: var(--text-color);
+        }
+        
+        .auth-toggle a {
+            color: var(--accent-color);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .auth-toggle a:hover {
+            text-decoration: underline;
+        }
+        
+        .auth-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        
+        .auth-error {
+            background-color: rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+        }
+        
+        .auth-success {
+            background-color: rgba(46, 204, 113, 0.3);
+            color: #2ecc71;
+        }
+        
+        .form-toggle {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-box">
+            <h1>Fantasy RPG Adventure</h1>
+            
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form">
+                <input type="text" id="login-username" class="auth-input" placeholder="Username" required>
+                <input type="password" id="login-password" class="auth-input" placeholder="Password" required>
+                <button type="submit" class="auth-button">
+                    <i class="fa fa-sign-in-alt"></i> Login
+                </button>
+                <div id="login-message" class="auth-message" style="display: none;"></div>
+                <div class="auth-toggle">
+                    Don't have an account? <a id="show-register">Register</a>
+                </div>
+            </form>
+            
+            <!-- Register Form -->
+            <form id="register-form" class="auth-form form-toggle">
+                <input type="text" id="register-username" class="auth-input" placeholder="Username" required>
+                <input type="password" id="register-password" class="auth-input" placeholder="Password" required>
+                <input type="password" id="register-confirm-password" class="auth-input" placeholder="Confirm Password" required>
+                <button type="submit" class="auth-button">
+                    <i class="fa fa-user-plus"></i> Register
+                </button>
+                <div id="register-message" class="auth-message" style="display: none;"></div>
+                <div class="auth-toggle">
+                    Already have an account? <a id="show-login">Login</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            const showRegisterLink = document.getElementById('show-register');
+            const showLoginLink = document.getElementById('show-login');
+            const loginMessage = document.getElementById('login-message');
+            const registerMessage = document.getElementById('register-message');
+            
+            // Toggle between login and register forms
+            showRegisterLink.addEventListener('click', function() {
+                loginForm.classList.add('form-toggle');
+                registerForm.classList.remove('form-toggle');
+                loginMessage.style.display = 'none';
+            });
+            
+            showLoginLink.addEventListener('click', function() {
+                registerForm.classList.add('form-toggle');
+                loginForm.classList.remove('form-toggle');
+                registerMessage.style.display = 'none';
+            });
+            
+            // Handle login form submission
+            loginForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('login-username').value.trim();
+                const password = document.getElementById('login-password').value;
+                
+                try {
+                    const response = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ username, password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Show success message
+                        loginMessage.textContent = data.message;
+                        loginMessage.className = 'auth-message auth-success';
+                        loginMessage.style.display = 'block';
+                        
+                        // Redirect to story selection page
+                        setTimeout(() => {
+                            window.location.href = '/stories';
+                        }, 1000);
+                    } else {
+                        // Show error message
+                        loginMessage.textContent = data.message;
+                        loginMessage.className = 'auth-message auth-error';
+                        loginMessage.style.display = 'block';
+                    }
+                } catch (error) {
+                    loginMessage.textContent = 'An error occurred. Please try again.';
+                    loginMessage.className = 'auth-message auth-error';
+                    loginMessage.style.display = 'block';
+                }
+            });
+            
+            // Handle register form submission
+            registerForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('register-username').value.trim();
+                const password = document.getElementById('register-password').value;
+                const confirmPassword = document.getElementById('register-confirm-password').value;
+                
+                // Check if passwords match
+                if (password !== confirmPassword) {
+                    registerMessage.textContent = 'Passwords do not match';
+                    registerMessage.className = 'auth-message auth-error';
+                    registerMessage.style.display = 'block';
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/api/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ username, password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Show success message
+                        registerMessage.textContent = data.message;
+                        registerMessage.className = 'auth-message auth-success';
+                        registerMessage.style.display = 'block';
+                        
+                        // Switch to login form after successful registration
+                        setTimeout(() => {
+                            registerForm.classList.add('form-toggle');
+                            loginForm.classList.remove('form-toggle');
+                            registerMessage.style.display = 'none';
+                        }, 2000);
+                    } else {
+                        // Show error message
+                        registerMessage.textContent = data.message;
+                        registerMessage.className = 'auth-message auth-error';
+                        registerMessage.style.display = 'block';
+                    }
+                } catch (error) {
+                    registerMessage.textContent = 'An error occurred. Please try again.';
+                    registerMessage.className = 'auth-message auth-error';
+                    registerMessage.style.display = 'block';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

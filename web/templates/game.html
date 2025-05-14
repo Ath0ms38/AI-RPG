@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Game</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(44, 62, 80, 0.95);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-color);
+            font-size: 2em;
+        }
+        .loading-spinner {
+            margin-top: 30px;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid var(--accent-color);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg);}
+            100% { transform: rotate(360deg);}
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading-overlay">
+        <div>Loading your adventure...</div>
+        <div class="loading-spinner"></div>
+    </div>
+    <div id="game-root" style="display:none;">
+        <!-- The main game UI will be loaded here by JS -->
+    </div>
+    <script>
+        // Wait for the backend to be ready for this story/game session
+        async function waitForGameReady(storyId) {
+            // Poll the backend for readiness (implement this endpoint in backend)
+            while (true) {
+                try {
+                    const resp = await fetch(`/api/game-ready/${storyId}`);
+                    const data = await resp.json();
+                    if (data.ready) {
+                        return;
+                    }
+                } catch (e) {}
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+
+        async function main() {
+            const storyId = window.location.pathname.split('/').pop();
+            await waitForGameReady(storyId);
+
+            // Hide loading, show game UI (reuse index.html content)
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('game-root').style.display = '';
+            // Optionally, you can load the main game UI here or redirect to /
+            window.location.href = "/";
+        }
+        main();
+    </script>
+</body>
+</html>
