@@ -118,11 +118,64 @@ class Character:
     def see_health_and_mana(self):
         return self.health_and_mana
 
+    def see_mana(self):
+        return {
+            "current_mana": self.health_and_mana["current_mana"],
+            "max_mana": self.health_and_mana["max_mana"]
+        }
+
     def see_level_and_experience(self):
         return self.level_and_experience
 
+    def see_experience(self):
+        return {
+            "experience": self.level_and_experience["experience"],
+            "experience_to_next_level": self.level_and_experience["experience_to_next_level"]
+        }
+
+    def adjust_mana(self, amount: int):
+        self.health_and_mana["current_mana"] += amount
+        self.health_and_mana["current_mana"] = max(
+            0,
+            min(self.health_and_mana["current_mana"], self.health_and_mana["max_mana"])
+        )
+        return f"Mana: {self.health_and_mana['current_mana']}/{self.health_and_mana['max_mana']}"
+
+    def adjust_experience(self, amount: int):
+        self.level_and_experience["experience"] += amount
+        leveled_up = False
+        while self.level_and_experience["experience"] >= self.level_and_experience["experience_to_next_level"]:
+            self.level_and_experience["experience"] -= self.level_and_experience["experience_to_next_level"]
+            self.level_and_experience["level"] += 1
+            self.level_and_experience["experience_to_next_level"] *= 2
+            # Optionally increase stats on level up
+            self.health_and_mana["max_health"] = int(self.health_and_mana["max_health"] * 1.1)
+            self.health_and_mana["current_health"] = self.health_and_mana["max_health"]
+            self.health_and_mana["max_mana"] = int(self.health_and_mana["max_mana"] * 1.1)
+            self.health_and_mana["current_mana"] = self.health_and_mana["max_mana"]
+            leveled_up = True
+        if leveled_up:
+            return f"Level up! Now level {self.level_and_experience['level']}. XP: {self.level_and_experience['experience']}/{self.level_and_experience['experience_to_next_level']}"
+        return f"XP: {self.level_and_experience['experience']}/{self.level_and_experience['experience_to_next_level']}"
+
     def see_inventory(self):
         return self.inventory.see_inventory()
+
+    def serialize_equipment(self):
+        """Returns equipment as a dict suitable for JSON serialization."""
+        result = {}
+        for slot, item in self.equipped.items():
+            if item is None:
+                result[slot] = None
+            else:
+                result[slot] = {
+                    "name": item.name,
+                    "description": item.description,
+                    "weight": item.weight,
+                    "amount": item.amount,
+                    "rarity": item.rarity
+                }
+        return result
 
     def add_item(self, name: str, description: str, weight: float, amount: int = 1, rarity: str = "Common"):
         return self.inventory.add_item(name, description, weight, amount, rarity)

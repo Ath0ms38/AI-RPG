@@ -563,8 +563,20 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } else if (typeof item === 'string') {
                     display = item;
                 }
+                // Map slot keys to icon filenames
+                const slotIconMap = {
+                    head: "head.svg",
+                    chest: "chest.svg",
+                    legs: "legs.svg",
+                    feet: "feet.svg",
+                    hands: "hands.svg",
+                    main_hand: "mainhand.svg",
+                    off_hand: "offhand.svg"
+                };
+                const iconFile = slotIconMap[slot] || "default.svg";
                 slotDiv.innerHTML = `
-                    <span>${formatSlotName(slot)}:</span>
+                    <img src="/static/icons/${iconFile}" alt="${slot}" class="equipment-icon">
+                    <span>${formatSlotName(slot)}</span>
                     <span>${display}</span>
                 `;
                 equipmentSlots.appendChild(slotDiv);

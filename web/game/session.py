@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 
-from rpg.Character import Character
+from web.rpg.Character import Character
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
@@ -68,7 +68,8 @@ class GameSession:
 
     No Full Inventory Explanations
         The user can view their own inventory at any time, so do not provide a fully formatted inventory list in your narrative. If an item from the inventory is relevant to the current situation, mention only that specific item rather than reciting the entire inventory.
-        
+                                         
+
     Important: These rules are critical for a smooth, immersive RPG experience. Do not break them under any circumstances.""")
 
         self.creation_system = SystemMessage(content="""RPG Character Creation Guidelines
@@ -159,9 +160,29 @@ Important: All these rules must be followed exactly. Missing any required field,
             return str(self.player_character.see_health_and_mana())
 
         @tool
+        def see_mana() -> str:
+            """Returns current mana status"""
+            return str(self.player_character.see_mana())
+
+        @tool
         def see_level() -> str:
             """Returns current level and experience progress"""
             return str(self.player_character.see_level_and_experience())
+
+        @tool
+        def see_experience() -> str:
+            """Returns current experience and XP to next level"""
+            return str(self.player_character.see_experience())
+
+        @tool
+        def adjust_mana(amount: int) -> str:
+            """Modifies character's current mana."""
+            return self.player_character.adjust_mana(amount)
+
+        @tool
+        def adjust_experience(amount: int) -> str:
+            """Modifies character's experience points and handles level up if needed."""
+            return self.player_character.adjust_experience(amount)
 
         @tool
         def see_inventory() -> str:
@@ -213,11 +234,15 @@ Next Level Requires: {pc.level_and_experience['experience_to_next_level']} XP"""
             "unequip_item": unequip_item,
             "see_inventory": see_inventory,
             "adjust_health": adjust_health,
+            "adjust_mana": adjust_mana,
+            "adjust_experience": adjust_experience,
             "level_up": level_up,
             "see_inventory_and_equipements": see_inventory_and_equipements,
             "see_equipment": see_equipment,
             "see_health": see_health,
+            "see_mana": see_mana,
             "see_level": see_level,
+            "see_experience": see_experience,
             "see_name": see_name,
             "see_lore": see_lore
         }
@@ -248,7 +273,9 @@ Starting Inventory: {self.player_character.see_inventory()}"""
             "see_inventory",
             "see_equipment",
             "see_health",
+            "see_mana",
             "see_level",
+            "see_experience",
             "see_inventory_and_equipements",
             "see_name",
             "see_lore"

@@ -168,6 +168,20 @@ textarea.editable-field {
     border-bottom: 1px solid rgba(127, 140, 141, 0.3);
 }
 
+.equipment-item {
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.equipment-item span {
+    margin: 0;
+    padding: 0;
+}
+
+.equipment-item span:last-of-type {
+    margin-left: 6px;
+}
+
 .inventory-container {
     max-height: 200px;
     overflow-y: auto;
@@ -505,4 +519,13 @@ textarea.editable-field {
     font-family: monospace;
     white-space: pre-wrap;
     opacity: 0.9;
+}
+
+/* Equipment icon size override */
+.equipment-icon {
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+    margin-right: 3px;
+    filter: invert(1) brightness(2);
 }

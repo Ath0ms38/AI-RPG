@@ -5,7 +5,7 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain_core.messages.tool import ToolMessage
-from rpg.Character import Character
+from web.rpg.Character import Character
 
 ##########################
 # Initialize Player

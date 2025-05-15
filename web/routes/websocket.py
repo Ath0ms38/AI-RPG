@@ -2,7 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import json
 from web.game.session import GameSession
 from web.game.helpers import process_character_creation, process_observation, process_ai_response
-from rpg.Character import Character
+from web.rpg.Character import Character
 
 router = APIRouter()
 
