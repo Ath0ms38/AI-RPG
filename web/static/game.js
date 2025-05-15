@@ -117,23 +117,29 @@ document.addEventListener('DOMContentLoaded', async function() {
                         pendingToolCall = null;
                         return;
                     }
-                    // Render legacy tool messages with role === 'tool'
-                    if (msg.role === 'tool') {
-                        // Try to extract tool name from the content
+                    // Only render descriptive tool call messages as expanders
+                    if (
+                        msg.role &&
+                        msg.role.toLowerCase().startsWith('ai') &&
+                        msg.content &&
+                        msg.content.startsWith('Tool AI called Tool')
+                    ) {
+                        // Extract tool name from descriptive format
                         let toolName = "Tool";
-                        if (msg.content) {
-                            // Extract up to first colon, dash, or period, or first 3 words as fallback
-                            const match = msg.content.match(/^([A-Za-z0-9_ ]+?)(:|-|\.| )/);
-                            if (match && match[1]) {
-                                toolName = match[1].trim();
-                            } else {
-                                toolName = msg.content.split(" ").slice(0, 3).join(" ");
-                            }
+                        let args = "";
+                        let output = msg.content || "";
+                        // Match: Tool AI called Tool TOOL_NAME with arguments: ... and got response:\nRESULT
+                        const regex = /^Tool AI called Tool ([^ ]+)(?: with arguments: (.*?))? and got response:\n([\s\S]*)$/;
+                        const match = msg.content.match(regex);
+                        if (match) {
+                            toolName = match[1].trim();
+                            args = match[2] ? match[2].trim() : "";
+                            output = match[3] ? match[3].trim() : "";
                         }
                         addCombinedToolMessage(
                             toolName,
-                            "",
-                            msg.content || ""
+                            args,
+                            output
                         );
                         return;
                     }

@@ -79,10 +79,17 @@ async def process_ai_response(websocket, session, save_story_callback=None):
                             "type": "tool_output",
                             "content": tool_output
                         }))
+                    # Save tool call in descriptive format for frontend compatibility
+                    tool_history_message = (
+                        f"Tool AI called Tool {tool_call['name']} with arguments: {tool_call['args']} and got response:\n {tool_output}"
+                    )
+                    # Append required ToolMessage for OpenAI compatibility
                     session.chat_history.append(ToolMessage(
                         content=tool_output,
                         tool_call_id=tool_call.get('id', str(uuid.uuid4()))
                     ))
+                    # Also append descriptive message for frontend
+                    session.chat_history.append(AIMessage(content=tool_history_message))
                 await process_ai_response(websocket, session, save_story_callback=save_story_callback)
             # Save story after AI message if callback provided
             if save_story_callback:
