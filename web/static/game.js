@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         sessionId = storyId;
         characterCreationModal.classList.add('hidden');
         fetchStoryDataAndInit();
+
     } else {
         characterCreationModal.classList.remove('hidden');
     }

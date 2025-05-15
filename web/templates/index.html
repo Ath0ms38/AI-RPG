@@ -61,7 +61,17 @@
     <div class="game-container">
         <!-- Left panel: Game chat -->
         <div class="game-panel">
-            <h1>Fantasy RPG Adventure</h1>
+            <div class="game-header" style="margin-bottom:10px;">
+                <h1 style="margin:0;font-size:2em;display:flex;align-items:center;justify-content:center;gap:18px;color:var(--accent-color);position:relative;">
+                    <button id="back-to-menu-btn" type="button" onclick="window.location.href='/stories'" style="padding:8px 16px;border-radius:6px;border:none;background:var(--panel-bg,#263445);color:var(--accent-color);font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                        <i class="fa fa-arrow-left"></i> Back to Menu
+                    </button>
+                    <span style="flex:1;text-align:center;">Everwriter</span>
+                    <button type="button" style="padding:8px 16px;border-radius:6px;border:none;background:transparent;color:transparent;pointer-events:none;visibility:hidden;display:flex;align-items:center;gap:6px;">
+                        <i class="fa fa-arrow-left"></i> Back to Menu
+                    </button>
+                </h1>
+            </div>
             <div class="chat-container">
                 <div id="chat-history" class="chat-history"></div>
 
