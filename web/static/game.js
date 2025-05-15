@@ -52,6 +52,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (data && data.chat_history && Array.isArray(data.chat_history)) {
                 // Collect all legacy observation messages in a batch
                 let pendingObservations = [];
+                // For tool call/output pairing
+                let pendingToolCall = null;
+
                 data.chat_history.forEach(msg => {
                     // Hide system guidelines and "Begin the adventure"
                     if (
@@ -63,6 +66,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     ) {
                         return;
                     }
+                    // Handle legacy observation messages
                     if (
                         msg.role &&
                         msg.role.toLowerCase().startsWith('ai') &&
@@ -76,20 +80,72 @@ document.addEventListener('DOMContentLoaded', async function() {
                         } else {
                             pendingObservations.push(observation);
                         }
-                    } else {
-                        // If we reach a non-observation message and have pending observations, render them
-                        if (pendingObservations.length > 0) {
-                            addObservationMessage(pendingObservations);
-                            pendingObservations = [];
+                        return;
+                    }
+
+                    // If we reach a non-observation message and have pending observations, render them
+                    if (pendingObservations.length > 0) {
+                        addObservationMessage(pendingObservations);
+                        pendingObservations = [];
+                    }
+
+                    // Skip empty AI messages
+                    if (
+                        msg.role &&
+                        msg.role.toLowerCase().startsWith('ai') &&
+                        (!msg.content || !msg.content.trim())
+                    ) {
+                        return;
+                    }
+
+                    // Tool call/output pairing (assumes tool_call and tool_output are in chat_history)
+                    if (msg.type === 'tool_call') {
+                        pendingToolCall = {
+                            name: msg.name,
+                            args: JSON.stringify(msg.args, null, 2),
+                            output: null
+                        };
+                        return;
+                    }
+                    if (msg.type === 'tool_output' && pendingToolCall) {
+                        pendingToolCall.output = msg.content;
+                        addCombinedToolMessage(
+                            pendingToolCall.name,
+                            pendingToolCall.args,
+                            pendingToolCall.output
+                        );
+                        pendingToolCall = null;
+                        return;
+                    }
+                    // Render legacy tool messages with role === 'tool'
+                    if (msg.role === 'tool') {
+                        // Try to extract tool name from the content
+                        let toolName = "Tool";
+                        if (msg.content) {
+                            // Extract up to first colon, dash, or period, or first 3 words as fallback
+                            const match = msg.content.match(/^([A-Za-z0-9_ ]+?)(:|-|\.| )/);
+                            if (match && match[1]) {
+                                toolName = match[1].trim();
+                            } else {
+                                toolName = msg.content.split(" ").slice(0, 3).join(" ");
+                            }
                         }
-                        if (msg.role === 'human') {
-                            addUserMessage(msg.content);
-                        } else if (msg.role === 'system') {
-                            addSystemMessage(msg.content);
-                        } else if (msg.role && msg.role.toLowerCase().startsWith('ai')) {
-                            appendToAiMessage(msg.content);
-                            finalizeAiMessage();
-                        }
+                        addCombinedToolMessage(
+                            toolName,
+                            "",
+                            msg.content || ""
+                        );
+                        return;
+                    }
+
+                    // Render regular messages
+                    if (msg.role === 'human') {
+                        addUserMessage(msg.content);
+                    } else if (msg.role === 'system') {
+                        addSystemMessage(msg.content);
+                    } else if (msg.role && msg.role.toLowerCase().startsWith('ai')) {
+                        appendToAiMessage(msg.content);
+                        finalizeAiMessage();
                     }
                 });
                 // Render any remaining observations at the end

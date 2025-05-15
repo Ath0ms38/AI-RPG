@@ -66,6 +66,19 @@ async def api_create_story(request: Request, data: dict):
 
     # Serialize chat_history for saving
     def serialize_message(msg):
+        # Handle tool_call and tool_output as dicts with type field
+        if isinstance(msg, dict) and "type" in msg:
+            base = {"type": msg["type"]}
+            if msg["type"] == "tool_call":
+                base["name"] = msg.get("name")
+                base["args"] = msg.get("args")
+            elif msg["type"] == "tool_output":
+                base["content"] = msg.get("content")
+            # Optionally include role/content for compatibility
+            base["role"] = msg.get("role", msg["type"])
+            base["content"] = msg.get("content", "")
+            return base
+        # Fallback for normal messages
         if hasattr(msg, "type"):
             role = msg.type
         elif hasattr(msg, "__class__"):
