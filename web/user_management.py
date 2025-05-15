@@ -87,24 +87,24 @@ def authenticate_user(username: str, password: str) -> Dict[str, Any]:
 
 def get_user_stories(username: str) -> List[Dict[str, Any]]:
     """
-    Get all stories for a user
-    
-    Args:
-        username: The username
-        
-    Returns:
-        List of story data
+    Get all stories for a user, only returning those with an existing story file.
     """
     user_file = os.path.join(USERS_DIR, f"{username.lower()}.json")
-    
+    user_dir = os.path.join(USERS_DIR, username.lower())
+
     if not os.path.exists(user_file):
         return []
-    
+
     try:
         with open(user_file, "r") as f:
             user_data = json.load(f)
-        
-        return user_data.get("stories", [])
+        stories = user_data.get("stories", [])
+        filtered_stories = []
+        for story in stories:
+            story_file = os.path.join(user_dir, f"{story['id']}.json")
+            if os.path.exists(story_file):
+                filtered_stories.append(story)
+        return filtered_stories
     except Exception:
         return []
 

@@ -34,10 +34,154 @@ document.addEventListener('DOMContentLoaded', async function() {
         // If a story_id is present, use it as the session id (continue story)
         sessionId = storyId;
         characterCreationModal.classList.add('hidden');
-        fetchCharacterData();
-        connectWebSocket();
+        fetchStoryDataAndInit();
     } else {
         characterCreationModal.classList.remove('hidden');
+    }
+
+    async function fetchStoryDataAndInit() {
+        await fetchCharacterData();
+        await fetchAndRenderChatHistory();
+        connectWebSocket();
+    }
+
+    async function fetchAndRenderChatHistory() {
+        try {
+            const response = await fetch(`/story/${sessionId}`);
+            const data = await response.json ? await response.json() : await response;
+            if (data && data.chat_history && Array.isArray(data.chat_history)) {
+                // Collect all legacy observation messages in a batch
+                let pendingObservations = [];
+                // For tool call/output pairing
+                let pendingToolCall = null;
+
+                data.chat_history.forEach(msg => {
+                    // Hide system guidelines and "Begin the adventure"
+                    if (
+                        (msg.role === 'system' && msg.content && msg.content.includes('RPG Game Master Guidelines')) ||
+                        (msg.role === 'human' && msg.content && (
+                            msg.content.trim() === 'Begin the adventure.' ||
+                            msg.content.trim().startsWith('World Description:')
+                        ))
+                    ) {
+                        return;
+                    }
+                    // Handle legacy observation messages
+                    if (
+                        msg.role &&
+                        msg.role.toLowerCase().startsWith('ai') &&
+                        msg.content &&
+                        msg.content.startsWith('Observation AI called Tool')
+                    ) {
+                        // Parse observation tool call and collect
+                        const observation = parseObservationMessage(msg.content);
+                        if (Array.isArray(observation)) {
+                            pendingObservations.push(...observation);
+                        } else {
+                            pendingObservations.push(observation);
+                        }
+                        return;
+                    }
+
+                    // If we reach a non-observation message and have pending observations, render them
+                    if (pendingObservations.length > 0) {
+                        addObservationMessage(pendingObservations);
+                        pendingObservations = [];
+                    }
+
+                    // Skip empty AI messages
+                    if (
+                        msg.role &&
+                        msg.role.toLowerCase().startsWith('ai') &&
+                        (!msg.content || !msg.content.trim())
+                    ) {
+                        return;
+                    }
+
+                    // Tool call/output pairing (assumes tool_call and tool_output are in chat_history)
+                    if (msg.type === 'tool_call') {
+                        pendingToolCall = {
+                            name: msg.name,
+                            args: JSON.stringify(msg.args, null, 2),
+                            output: null
+                        };
+                        return;
+                    }
+                    if (msg.type === 'tool_output' && pendingToolCall) {
+                        pendingToolCall.output = msg.content;
+                        addCombinedToolMessage(
+                            pendingToolCall.name,
+                            pendingToolCall.args,
+                            pendingToolCall.output
+                        );
+                        pendingToolCall = null;
+                        return;
+                    }
+                    // Only render descriptive tool call messages as expanders
+                    if (
+                        msg.role &&
+                        msg.role.toLowerCase().startsWith('ai') &&
+                        msg.content &&
+                        msg.content.startsWith('Tool AI called Tool')
+                    ) {
+                        // Extract tool name from descriptive format
+                        let toolName = "Tool";
+                        let args = "";
+                        let output = msg.content || "";
+                        // Match: Tool AI called Tool TOOL_NAME with arguments: ... and got response:\nRESULT
+                        const regex = /^Tool AI called Tool ([^ ]+)(?: with arguments: (.*?))? and got response:\n([\s\S]*)$/;
+                        const match = msg.content.match(regex);
+                        if (match) {
+                            toolName = match[1].trim();
+                            args = match[2] ? match[2].trim() : "";
+                            output = match[3] ? match[3].trim() : "";
+                        }
+                        addCombinedToolMessage(
+                            toolName,
+                            args,
+                            output
+                        );
+                        return;
+                    }
+
+                    // Render regular messages
+                    if (msg.role === 'human') {
+                        addUserMessage(msg.content);
+                    } else if (msg.role === 'system') {
+                        addSystemMessage(msg.content);
+                    } else if (msg.role && msg.role.toLowerCase().startsWith('ai')) {
+                        appendToAiMessage(msg.content);
+                        finalizeAiMessage();
+                    }
+                });
+                // Render any remaining observations at the end
+                if (pendingObservations.length > 0) {
+                    addObservationMessage(pendingObservations);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching chat history:', error);
+        }
+    }
+
+    // Helper to parse observation messages from legacy AI chat history
+    function parseObservationMessage(content) {
+        // Example: "Observation AI called Tool see_inventory and got response:\n Your inventory is empty."
+        // or: "Observation AI called Tool see_equipment and got response:\n {...}"
+        // Try to extract tool and output
+        const regex = /^Observation AI called Tool ([^ ]+) and got response:\n([\s\S]*)$/;
+        const match = content.match(regex);
+        if (match) {
+            return [{
+                tool: match[1],
+                output: match[2].trim()
+            }];
+        }
+        // fallback: return as a single observation
+        return [{
+            tool: "Observation",
+            output: content
+        }];
     }
 
     // Event Listeners
@@ -123,13 +267,22 @@ document.addEventListener('DOMContentLoaded', async function() {
             addSystemMessage('Connection error. Please refresh the page.');
         };
 
-        webSocket.onclose = () => {
-            console.log('WebSocket closed');
-            setTimeout(() => {
-                if (sessionId) {
-                    connectWebSocket();
-                }
-            }, 3000);
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        webSocket.onclose = (event) => {
+            console.log('WebSocket closed', event);
+            // Only reconnect if not a clean close and retry limit not reached
+            if (!event.wasClean && reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                setTimeout(() => {
+                    if (sessionId) {
+                        connectWebSocket();
+                    }
+                }, 3000 * reconnectAttempts); // Exponential backoff
+            } else if (reconnectAttempts >= maxReconnectAttempts) {
+                addSystemMessage('Unable to connect to server. Please refresh the page or try again later.');
+            }
         };
     }
 
@@ -403,9 +556,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             for (const [slot, item] of Object.entries(data.equipment)) {
                 const slotDiv = document.createElement('div');
                 slotDiv.classList.add('equipment-item');
+                let display = 'Empty';
+                if (item && typeof item === 'object') {
+                    display = `${item.name} (x${item.amount}, ${item.rarity})`;
+                } else if (typeof item === 'string') {
+                    display = item;
+                }
                 slotDiv.innerHTML = `
                     <span>${formatSlotName(slot)}:</span>
-                    <span>${item || 'Empty'}</span>
+                    <span>${display}</span>
                 `;
                 equipmentSlots.appendChild(slotDiv);
             }
