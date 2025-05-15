@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     const inventoryList = document.getElementById('inventory-list');
     const loadingOverlay = document.getElementById('loading-overlay');
 
+    // Status bar setup
+    // (Removed global status bar injection. Status bars will be rendered in characterStats.)
+
     // Templates
     const userMessageTemplate = document.getElementById('user-message-template');
     const aiMessageTemplate = document.getElementById('ai-message-template');
@@ -526,31 +529,32 @@ document.addEventListener('DOMContentLoaded', async function() {
             characterLore.value = data.lore;
         }
         if (data.health && data.level) {
-            characterStats.innerHTML = '';
-            const healthManaDiv = document.createElement('div');
-            healthManaDiv.innerHTML = `
-                <div class="stat-item">
-                    <span>Health:</span> 
-                    <span>${data.health.current_health}/${data.health.max_health}</span>
+            characterStats.innerHTML = `
+                <div class="status-item health">
+                    <span class="status-label"><i class="fa fa-heart"></i> Health:</span>
+                    <span class="status-value">${data.health.current_health}/${data.health.max_health}</span>
+                    <div class="status-bar-bg">
+                        <div class="status-bar-fill health-bar" style="width:${100 * data.health.current_health / data.health.max_health}%;"></div>
+                    </div>
+                </div>
+                <div class="status-item mana">
+                    <span class="status-label"><i class="fa fa-bolt"></i> Mana:</span>
+                    <span class="status-value">${data.health.current_mana}/${data.health.max_mana}</span>
+                    <div class="status-bar-bg">
+                        <div class="status-bar-fill mana-bar" style="width:${100 * data.health.current_mana / data.health.max_mana}%;"></div>
+                    </div>
+                </div>
+                <div class="status-item xp">
+                    <span class="status-label"><i class="fa fa-star"></i> XP:</span>
+                    <span class="status-value">${data.level.experience}/${data.level.experience_to_next_level}</span>
+                    <div class="status-bar-bg">
+                        <div class="status-bar-fill xp-bar" style="width:${100 * data.level.experience / data.level.experience_to_next_level}%;"></div>
+                    </div>
                 </div>
                 <div class="stat-item">
-                    <span>Mana:</span> 
-                    <span>${data.health.current_mana}/${data.health.max_mana}</span>
+                    <span>Level: ${data.level.level}</span>
                 </div>
             `;
-            characterStats.appendChild(healthManaDiv);
-            const levelDiv = document.createElement('div');
-            levelDiv.innerHTML = `
-                <div class="stat-item">
-                    <span>Level:</span> 
-                    <span>${data.level.level}</span>
-                </div>
-                <div class="stat-item">
-                    <span>XP:</span> 
-                    <span>${data.level.experience}/${data.level.experience_to_next_level}</span>
-                </div>
-            `;
-            characterStats.appendChild(levelDiv);
         }
         if (data.equipment) {
             equipmentSlots.innerHTML = '';

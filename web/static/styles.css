@@ -529,3 +529,66 @@ textarea.editable-field {
     margin-right: 3px;
     filter: invert(1) brightness(2);
 }
+
+/* --- Status Bar Styles --- */
+.status-bar {
+    display: flex;
+    gap: 30px;
+    align-items: center;
+    justify-content: flex-start;
+    background: rgba(44, 62, 80, 0.95);
+    border-bottom: 2px solid var(--accent-color);
+    padding: 12px 32px 12px 32px;
+    font-size: 1.1em;
+    z-index: 100;
+    min-height: 48px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+
+.status-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 120px;
+    margin-right: 20px;
+}
+
+.status-label {
+    font-weight: bold;
+    color: var(--accent-color);
+    margin-bottom: 2px;
+    font-size: 1em;
+}
+
+.status-value {
+    color: var(--text-color);
+    margin-bottom: 2px;
+    font-size: 1em;
+}
+
+.status-bar-bg {
+    width: 100%;
+    height: 10px;
+    background: #222c37;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+.status-bar-fill {
+    height: 100%;
+    transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+
+.health-bar {
+    background: linear-gradient(90deg, #e74c3c, #c0392b);
+}
+
+.mana-bar {
+    background: linear-gradient(90deg, #3498db, #2980b9);
+}
+
+.xp-bar {
+    background: linear-gradient(90deg, #f1c40f, #f39c12);
+}
