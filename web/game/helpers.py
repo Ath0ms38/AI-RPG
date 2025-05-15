@@ -60,12 +60,9 @@ async def process_ai_response(websocket, session, save_story_callback=None):
             gathered_msg = chunk if not gathered_msg else gathered_msg + chunk
         if gathered_msg:
             session.chat_history.append(gathered_msg)
-            if websocket:
-                await websocket.send_text(json.dumps({
-                    "type": "ai_complete",
-                    "content": response_content
-                }))
             if gathered_msg.tool_calls:
+                tool_messages = []
+                tool_history_messages = []
                 for tool_call in gathered_msg.tool_calls:
                     if websocket:
                         await websocket.send_text(json.dumps({
@@ -79,21 +76,30 @@ async def process_ai_response(websocket, session, save_story_callback=None):
                             "type": "tool_output",
                             "content": tool_output
                         }))
-                    # Save tool call in descriptive format for frontend compatibility
-                    tool_history_message = (
-                        f"Tool AI called Tool {tool_call['name']} with arguments: {tool_call['args']} and got response:\n {tool_output}"
-                    )
-                    # Append required ToolMessage for OpenAI compatibility
-                    session.chat_history.append(ToolMessage(
+                    # Prepare ToolMessage for OpenAI compatibility
+                    tool_messages.append(ToolMessage(
                         content=tool_output,
-                        tool_call_id=tool_call.get('id', str(uuid.uuid4()))
+                        tool_call_id=tool_call['id'] if 'id' in tool_call else str(uuid.uuid4())
                     ))
-                    # Also append descriptive message for frontend
-                    session.chat_history.append(AIMessage(content=tool_history_message))
+                    # Prepare descriptive message for frontend
+                    tool_history_messages.append(AIMessage(
+                        content=f"Tool AI called Tool {tool_call['name']} with arguments: {tool_call['args']} and got response:\n {tool_output}"
+                    ))
+                # Append all ToolMessages immediately after the assistant message
+                session.chat_history.extend(tool_messages)
+                # Only after tool messages, append descriptive messages for frontend
+                session.chat_history.extend(tool_history_messages)
+                # Now process the next AI response with all tool responses included
                 await process_ai_response(websocket, session, save_story_callback=save_story_callback)
-            # Save story after AI message if callback provided
-            if save_story_callback:
-                save_story_callback()
+            else:
+                if websocket:
+                    await websocket.send_text(json.dumps({
+                        "type": "ai_complete",
+                        "content": response_content
+                    }))
+                # Save story after AI message if callback provided
+                if save_story_callback:
+                    save_story_callback()
     except Exception as e:
         print(f"Error in AI response processing: {e}")
         if websocket:
