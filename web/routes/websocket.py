@@ -2,6 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import json
 from web.game.session import GameSession
 from web.game.helpers import process_character_creation, process_observation, process_ai_response
+from rpg.Character import Character
 
 router = APIRouter()
 
@@ -14,7 +15,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     if session_id not in game_sessions:
         # Try to load session from story file
         import os
-        import json
         from web.user_management import USERS_DIR
         from web.game.session import GameSession
         for user_file in os.listdir(USERS_DIR):
@@ -29,18 +29,31 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     session = GameSession(session_id, username)
                     if "character" in story_data:
                         char = story_data["character"]
-                        from web.rpg.Character import Character
                         if not isinstance(session.player_character, Character):
-                            print("player_character is not a Character instance, resetting.")
+                            # print("player_character is not a Character instance, resetting.")
                             session.player_character = Character()
                         session.player_character.name = char.get("name", "")
                         session.player_character.lore = char.get("lore", "")
                         session.player_character.health_and_mana = char.get("health", {})
                         session.player_character.level_and_experience = char.get("level", {})
-                        session.player_character.equipment = char.get("equipment", {})
+                        # Restore equipment properly
+                        equipment_data = char.get("equipment", {})
+                        from rpg.inventory import Item
+                        for slot in session.player_character.equipped:
+                            slot_data = equipment_data.get(slot)
+                            if slot_data is not None and isinstance(slot_data, dict):
+                                session.player_character.equipped[slot] = Item(
+                                    name=slot_data["name"],
+                                    description=slot_data["description"],
+                                    weight=slot_data["weight"],
+                                    amount=slot_data.get("amount", 1),
+                                    rarity=slot_data.get("rarity", "Common")
+                                )
+                            else:
+                                session.player_character.equipped[slot] = None
                         # Do NOT restore inventory directly; let Character class manage it
                         # session.player_character.inventory = char.get("inventory", "")
-                        print("player_character type after restore:", type(session.player_character))
+                        # print("player_character type after restore:", type(session.player_character))
                     # Restore chat history if available
                     chat_history = story_data.get("chat_history", [])
                     from langchain.schema import HumanMessage, AIMessage, SystemMessage

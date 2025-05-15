@@ -270,13 +270,13 @@ Starting Inventory: {self.player_character.see_inventory()}"""
         return f"Unknown tool '{tool_name}'"
 
     def get_character_data(self):
-        """Returns character data for the UI."""
+        """Returns character data for the UI and saving (equipment as dict)."""
         return {
             "name": self.player_character.name,
             "lore": self.player_character.lore,
             "health": self.player_character.see_health_and_mana(),
             "level": self.player_character.see_level_and_experience(),
-            "equipment": self.player_character.see_equipment(),
+            "equipment": self.player_character.serialize_equipment(),
             "inventory": self.player_character.see_inventory()
         }
 

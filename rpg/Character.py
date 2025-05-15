@@ -106,13 +106,29 @@ class Character:
         return f"Unequipped {equipped_item.name} from {slot} slot."
 
     def see_equipment(self):
-        """Returns a dictionary of slot -> item or None."""
+        """Returns a dictionary of slot -> item or None (display only)."""
         result = {}
         for slot, item_obj in self.equipped.items():
             if item_obj is None:
                 result[slot] = None
             else:
                 result[slot] = f"{item_obj.name} (x{item_obj.amount}, {item_obj.rarity})"
+        return result
+
+    def serialize_equipment(self):
+        """Returns a dictionary of slot -> item dict or None (for saving)."""
+        result = {}
+        for slot, item_obj in self.equipped.items():
+            if item_obj is None:
+                result[slot] = None
+            else:
+                result[slot] = {
+                    "name": item_obj.name,
+                    "description": item_obj.description,
+                    "weight": item_obj.weight,
+                    "amount": item_obj.amount,
+                    "rarity": item_obj.rarity
+                }
         return result
 
     def see_health_and_mana(self):

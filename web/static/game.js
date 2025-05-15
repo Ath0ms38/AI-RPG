@@ -494,9 +494,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             for (const [slot, item] of Object.entries(data.equipment)) {
                 const slotDiv = document.createElement('div');
                 slotDiv.classList.add('equipment-item');
+                let display = 'Empty';
+                if (item && typeof item === 'object') {
+                    display = `${item.name} (x${item.amount}, ${item.rarity})`;
+                } else if (typeof item === 'string') {
+                    display = item;
+                }
                 slotDiv.innerHTML = `
                     <span>${formatSlotName(slot)}:</span>
-                    <span>${item || 'Empty'}</span>
+                    <span>${display}</span>
                 `;
                 equipmentSlots.appendChild(slotDiv);
             }
