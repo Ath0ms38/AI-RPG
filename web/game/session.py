@@ -11,9 +11,12 @@ class CharacterUpdate(BaseModel):
     name: Optional[str] = None
     lore: Optional[str] = None
 
+from web.utils.story_utils import update_story_with_character
+
 class GameSession:
-    def __init__(self, session_id):
+    def __init__(self, session_id, username):
         self.session_id = session_id
+        self.username = username
         self.player_character = Character()
         self.chat_history = []
 
@@ -267,7 +270,7 @@ Starting Inventory: {self.player_character.see_inventory()}"""
         return f"Unknown tool '{tool_name}'"
 
     def get_character_data(self):
-        """Returns character data for the UI"""
+        """Returns character data for the UI."""
         return {
             "name": self.player_character.name,
             "lore": self.player_character.lore,
@@ -277,10 +280,21 @@ Starting Inventory: {self.player_character.see_inventory()}"""
             "inventory": self.player_character.see_inventory()
         }
 
+    def save_session(self):
+        """Saves the current session data to the story file."""
+        story_update = {
+            "character": self.get_character_data(),
+            "chat_history": [
+                {"role": msg.type, "content": msg.content} for msg in self.chat_history
+            ]
+        }
+        update_story_with_character(self.username, self.session_id, story_update)
+
     def update_character(self, update_data: CharacterUpdate):
-        """Update character attributes"""
+        """Update character attributes and save session."""
         if update_data.name:
             self.player_character.name = update_data.name
         if update_data.lore:
             self.player_character.lore = update_data.lore
+        self.save_session()
         return self.get_character_data()

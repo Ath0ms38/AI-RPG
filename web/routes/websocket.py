@@ -26,7 +26,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     with open(story_file, "r") as f:
                         story_data = json.load(f)
                     # Reconstruct GameSession with character data if available
-                    session = GameSession(session_id)
+                    session = GameSession(session_id, username)
                     if "character" in story_data:
                         char = story_data["character"]
                         from web.rpg.Character import Character
@@ -46,15 +46,21 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     from langchain.schema import HumanMessage, AIMessage, SystemMessage
                     restored_history = []
                     for msg in chat_history:
-                        role = msg.get("role", "").lower()
-                        content = msg.get("content", "")
-                        if role == "human":
-                            restored_history.append(HumanMessage(content=content))
-                        elif role == "system":
-                            restored_history.append(SystemMessage(content=content))
-                        elif "ai" in role:
-                            restored_history.append(AIMessage(content=content))
-                        # else skip or handle tool messages if needed
+                        if isinstance(msg, dict):
+                            role = msg.get("role", "").lower()
+                            content = msg.get("content", "")
+                            if role == "human":
+                                restored_history.append(HumanMessage(content=content))
+                            elif role == "system":
+                                restored_history.append(SystemMessage(content=content))
+                            elif "ai" in role:
+                                restored_history.append(AIMessage(content=content))
+                            elif role == "tool":
+                                print(f"Tool message detected: {msg}")
+                            else:
+                                print(f"Skipping unknown message type: {msg}")
+                        else:
+                            print(f"Unexpected message format: {msg}")
                     if restored_history:
                         session.chat_history = restored_history
                     session.character_created = True
@@ -82,12 +88,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
         while True:
             user_input = await websocket.receive_text()
+            from langchain.schema import HumanMessage
             await websocket.send_text(json.dumps({
                 "type": "user",
                 "content": user_input
             }))
 
-            session.chat_history.append({"role": "user", "content": user_input})
+            session.chat_history.append(HumanMessage(content=user_input))
+            session.save_session()
 
             observation_results = await process_observation(session)
             await websocket.send_text(json.dumps({
@@ -96,6 +104,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             }))
 
             await process_ai_response(websocket, session)
+            session.save_session()
             await websocket.send_text(json.dumps({
                 "type": "character_update",
                 "data": session.get_character_data()

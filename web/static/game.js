@@ -50,6 +50,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             const response = await fetch(`/story/${sessionId}`);
             const data = await response.json ? await response.json() : await response;
             if (data && data.chat_history && Array.isArray(data.chat_history)) {
+                // Collect all legacy observation messages in a batch
+                let pendingObservations = [];
                 data.chat_history.forEach(msg => {
                     // Hide system guidelines and "Begin the adventure"
                     if (
@@ -61,19 +63,63 @@ document.addEventListener('DOMContentLoaded', async function() {
                     ) {
                         return;
                     }
-                    if (msg.role === 'human') {
-                        addUserMessage(msg.content);
-                    } else if (msg.role === 'system') {
-                        addSystemMessage(msg.content);
-                    } else if (msg.role && msg.role.toLowerCase().startsWith('ai')) {
-                        appendToAiMessage(msg.content);
-                        finalizeAiMessage();
+                    if (
+                        msg.role &&
+                        msg.role.toLowerCase().startsWith('ai') &&
+                        msg.content &&
+                        msg.content.startsWith('Observation AI called Tool')
+                    ) {
+                        // Parse observation tool call and collect
+                        const observation = parseObservationMessage(msg.content);
+                        if (Array.isArray(observation)) {
+                            pendingObservations.push(...observation);
+                        } else {
+                            pendingObservations.push(observation);
+                        }
+                    } else {
+                        // If we reach a non-observation message and have pending observations, render them
+                        if (pendingObservations.length > 0) {
+                            addObservationMessage(pendingObservations);
+                            pendingObservations = [];
+                        }
+                        if (msg.role === 'human') {
+                            addUserMessage(msg.content);
+                        } else if (msg.role === 'system') {
+                            addSystemMessage(msg.content);
+                        } else if (msg.role && msg.role.toLowerCase().startsWith('ai')) {
+                            appendToAiMessage(msg.content);
+                            finalizeAiMessage();
+                        }
                     }
                 });
+                // Render any remaining observations at the end
+                if (pendingObservations.length > 0) {
+                    addObservationMessage(pendingObservations);
+                }
             }
         } catch (error) {
             console.error('Error fetching chat history:', error);
         }
+    }
+
+    // Helper to parse observation messages from legacy AI chat history
+    function parseObservationMessage(content) {
+        // Example: "Observation AI called Tool see_inventory and got response:\n Your inventory is empty."
+        // or: "Observation AI called Tool see_equipment and got response:\n {...}"
+        // Try to extract tool and output
+        const regex = /^Observation AI called Tool ([^ ]+) and got response:\n([\s\S]*)$/;
+        const match = content.match(regex);
+        if (match) {
+            return [{
+                tool: match[1],
+                output: match[2].trim()
+            }];
+        }
+        // fallback: return as a single observation
+        return [{
+            tool: "Observation",
+            output: content
+        }];
     }
 
     // Event Listeners

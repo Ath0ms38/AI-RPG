@@ -4,8 +4,9 @@ import os
 import json
 from web.config import templates
 from web.user_management import (
-    get_user_stories, create_story, update_story
+    get_user_stories, create_story
 )
+from web.utils.story_utils import update_story_with_character
 from web.routes.auth import get_username_from_session
 from web.game.session import GameSession
 from web.game.helpers import process_character_creation, process_ai_response
@@ -43,7 +44,7 @@ async def api_create_story(request: Request, data: dict):
     story_id = result["story_data"]["id"]
 
     # 2. Create a game session for this story
-    session = GameSession(story_id)
+    session = GameSession(story_id, username)
     game_sessions[story_id] = session
 
     # 3. Run character creation with both world and character description
