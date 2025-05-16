@@ -212,6 +212,31 @@ textarea.editable-field {
     margin-right: 10px;
 }
 
+/* Override avatar backgrounds to match chat background */
+.user-avatar-bg,
+.ai-avatar-bg {
+    background-color: var(--chat-bg) !important;
+}
+
+/* User icon color to match chat background */
+.user-avatar-bg .fa-user {
+    color: var(--chat-bg) !important;
+}
+
+/* Book SVG icon filter to make it white */
+.avatar-book-icon {
+    width: 28px;
+    height: 28px;
+    filter: invert(1);
+}
+
+/* User SVG icon filter to make it white */
+.avatar-user-icon {
+    width: 28px;
+    height: 28px;
+    filter: invert(1);
+}
+
 .message-content {
     flex: 1;
     padding: 10px 15px;
