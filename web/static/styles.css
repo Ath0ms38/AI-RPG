@@ -67,6 +67,7 @@ body {
     flex-direction: column;
     height: calc(100% - 80px);
     padding: 15px;
+    padding-bottom: 20px;
 }
 
 .chat-history {
@@ -83,6 +84,7 @@ body {
     background-color: var(--input-bg);
     border-radius: 8px;
     overflow: hidden;
+    margin-top: 20px;
 }
 
 #user-input {
